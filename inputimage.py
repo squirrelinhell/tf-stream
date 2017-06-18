@@ -24,13 +24,13 @@ import scipy.misc
 
 class ImageEditor():
     def __init__(self, img):
-        self.brush_radius = 2
+        self.img = img
+        self.brush_radius = max(2.0, min(self.img.shape[0:2]) * 0.05)
         self.brush_color = 1.0
         self.brush_pos = None
         self.callback = lambda: None
         self.buttons = []
         self.next_btn_x = 0.02
-        self.img = img
         self.aximg = plt.imshow(img, vmin=0.0, vmax=1.0, cmap="gray")
         canvas = self.aximg.figure.canvas
         canvas.mpl_connect("button_press_event", self._on_press)
@@ -38,11 +38,18 @@ class ImageEditor():
         canvas.mpl_connect("motion_notify_event", self._on_move)
         plt.subplots_adjust(bottom=0.15)
         self._add_btn(self._on_btn_clear, "Clear")
-        for v in [0.0, 0.5, 1.0]:
-            self._add_btn(self._on_btn_color, "")
-            self.buttons[-1].color = (v, v, v)
         self._add_btn(self._on_btn_bigger, "Bigger")
         self._add_btn(self._on_btn_smaller, "Smaller")
+        if len(self.img.shape) >= 3 and self.img.shape[2] == 3:
+            for r in [0.0, 0.5, 1.0]:
+                for g in [0.0, 0.5, 1.0]:
+                    for b in [0.0, 0.5, 1.0]:
+                        self._add_btn(self._on_btn_color, (r, g, b))
+                        self.buttons[-1].brush = np.array([r, g, b])
+        else:
+            for v in [0.0, 0.5, 1.0]:
+                self._add_btn(self._on_btn_color, (v, v, v))
+                self.buttons[-1].brush = v
 
     def get_image(self):
         return self.img
@@ -89,10 +96,13 @@ class ImageEditor():
     def _on_btn_color(self, event):
         for b in self.buttons:
             if b.ax == event.inaxes:
-                self.brush_color = b.color[0]
+                self.brush_color = b.brush
 
     def _on_btn_bigger(self, event):
-        self.brush_radius *= 1.5
+        self.brush_radius = min(
+            min(self.img.shape[0:2]) * 0.3,
+            self.brush_radius * 1.5
+        )
 
     def _on_btn_smaller(self, event):
         self.brush_radius = max(1.0, self.brush_radius * 0.7)
@@ -112,13 +122,20 @@ class ImageEditor():
                 if dist > 1.0:
                     continue
                 dist = max(0.0, 2.0 * dist - 1.0)
+                dist = -2 * dist*dist*dist + 3 * dist*dist
                 self.img[y][x] *= dist
                 self.img[y][x] += (1.0 - dist) * self.brush_color
 
     def _add_btn(self, action, label):
-        axes = plt.axes([self.next_btn_x, 0.02, 0.09, 0.07])
-        self.next_btn_x += 0.1
-        btn = matplotlib.widgets.Button(axes, label)
+        if isinstance(label, str):
+            axes = plt.axes([self.next_btn_x, 0.02, 0.09, 0.07])
+            self.next_btn_x += 0.1
+            btn = matplotlib.widgets.Button(axes, label)
+        else:
+            axes = plt.axes([self.next_btn_x, 0.02, 0.02, 0.07])
+            self.next_btn_x += 0.02
+            btn = matplotlib.widgets.Button(axes, "", \
+                color=label, hovercolor=label)
         btn.on_clicked(action)
         self.buttons.append(btn)
 
@@ -143,7 +160,7 @@ def load_image(shape):
         if len(img.shape) >= 3 and len(shape) < 3:
             img = np.mean(img, 2)
         img = img / 255.0
-        return np.reshape(img, shape)
+        return np.array(np.broadcast_to(img.T, shape[::-1]).T)
     return np.zeros(shape)
 
 sess, x, y = loadsave.load(modeldir)
