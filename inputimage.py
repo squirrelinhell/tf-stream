@@ -24,7 +24,7 @@ import scipy.misc
 
 class ImageEditor():
     def __init__(self, img):
-        self.img = img
+        self.img = np.array(img, np.float32)
         self.brush_radius = max(2.0, min(self.img.shape[0:2]) * 0.05)
         self.brush_color = 1.0
         self.brush_pos = None
@@ -79,7 +79,7 @@ class ImageEditor():
                 or self.brush_pos is None \
                 or self.aximg.axes != event.inaxes:
             return
-        mouse_pos = np.array([event.xdata, event.ydata])
+        mouse_pos = np.array([event.xdata, event.ydata], np.float32)
         dist = np.linalg.norm(mouse_pos - self.brush_pos) \
             * (1.4 / self.brush_radius)
         if dist < 1.0:
@@ -108,23 +108,23 @@ class ImageEditor():
         self.brush_radius = max(1.0, self.brush_radius * 0.7)
 
     def _brush_range(self, axis):
-        v_min = max(0, int(self.brush_pos[axis] - self.brush_radius))
-        v_max = min(self.img.shape[axis], \
+        start = max(0, int(self.brush_pos[axis] - self.brush_radius))
+        end = min(self.img.shape[axis], \
             int(self.brush_pos[axis] + self.brush_radius + 1))
-        return range(v_min, v_max)
+        return start, end
 
     def _draw_brush(self):
-        for y in self._brush_range(1):
-            for x in self._brush_range(0):
-                point = np.array([x, y])
-                dist = np.linalg.norm(point - self.brush_pos) \
-                    / self.brush_radius
-                if dist > 1.0:
-                    continue
-                dist = max(0.0, 2.0 * dist - 1.0)
-                dist = -2 * dist*dist*dist + 3 * dist*dist
-                self.img[y][x] *= dist
-                self.img[y][x] += (1.0 - dist) * self.brush_color
+        xstart, xend = self._brush_range(0)
+        ystart, yend = self._brush_range(1)
+        imgslice = self.img[ystart:yend, xstart:xend]
+        ygrid, xgrid = np.ogrid[ystart:yend, xstart:xend]
+        xgrid = xgrid.astype(np.float32) - self.brush_pos[0]
+        ygrid = ygrid.astype(np.float32) - self.brush_pos[1]
+        v = np.sqrt(xgrid * xgrid + ygrid * ygrid)
+        v = np.clip(v - self.brush_radius + 1.0, 0.0, 1.0)
+        v = np.broadcast_to(v.T, imgslice.shape[::-1]).T
+        imgslice *= v
+        imgslice += (1.0 - v) * self.brush_color
 
     def _add_btn(self, action, label):
         if isinstance(label, str):
@@ -160,7 +160,7 @@ def load_image(shape):
         if len(img.shape) >= 3 and len(shape) < 3:
             img = np.mean(img, 2)
         img = img / 255.0
-        return np.array(np.broadcast_to(img.T, shape[::-1]).T)
+        return np.broadcast_to(img.T, shape[::-1]).T
     return np.zeros(shape)
 
 sess, x, y = loadsave.load(modeldir)
