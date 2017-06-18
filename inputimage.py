@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 import matplotlib.widgets
 import scipy.ndimage
 import scipy.misc
+import threading
 
 class ImageEditor():
     def __init__(self, img):
@@ -31,6 +32,10 @@ class ImageEditor():
         self.callback = lambda: None
         self.buttons = []
         self.next_btn_x = 0.02
+        self.draw_dirty = False
+        self.draw_thread_running = False
+        self.callback_dirty = False
+        self.callback_thread_running = False
         self.aximg = plt.imshow(img, vmin=0.0, vmax=1.0, cmap="gray")
         canvas = self.aximg.figure.canvas
         canvas.mpl_connect("button_press_event", self._on_press)
@@ -57,10 +62,35 @@ class ImageEditor():
     def on_changed(self, callback):
         self.callback = callback
 
-    def _on_img_changed(self):
-        self.aximg.set_data(self.img)
-        self.callback()
-        plt.draw()
+    def _request_draw(self):
+        self.draw_dirty = True
+        if not self.draw_thread_running:
+            self.draw_thread_running = True
+            t = threading.Thread(target=self._thread_draw)
+            t.daemon = True
+            t.start()
+
+    def _thread_draw(self):
+        while self.draw_dirty:
+            self.draw_dirty = False
+            self.aximg.set_data(self.img)
+            plt.draw()
+        self.draw_thread_running = False
+
+    def _request_callback(self):
+        self.callback_dirty = True
+        if not self.callback_thread_running:
+            self.callback_thread_running = True
+            t = threading.Thread(target=self._thread_callback)
+            t.daemon = True
+            t.start()
+
+    def _thread_callback(self):
+        while self.callback_dirty:
+            self.callback_dirty = False
+            self.callback()
+            self._request_draw()
+        self.callback_thread_running = False
 
     def _on_press(self, event):
         if event.xdata == None or event.ydata == None \
@@ -69,7 +99,8 @@ class ImageEditor():
             return
         self.brush_pos = np.array([event.xdata, event.ydata])
         self._draw_brush()
-        self._on_img_changed()
+        self._request_draw()
+        self._request_callback()
 
     def _on_release(self, event):
         self.brush_pos = None
@@ -80,18 +111,19 @@ class ImageEditor():
                 or self.aximg.axes != event.inaxes:
             return
         mouse_pos = np.array([event.xdata, event.ydata], np.float32)
-        dist = np.linalg.norm(mouse_pos - self.brush_pos) \
-            * (1.4 / self.brush_radius)
+        dist = np.linalg.norm(mouse_pos - self.brush_pos)
         if dist < 1.0:
             return
         for i in range(int(dist)):
             self.brush_pos += (mouse_pos - self.brush_pos) / dist
             self._draw_brush()
-        self._on_img_changed()
+        self._request_draw()
+        self._request_callback()
 
     def _on_btn_clear(self, event):
         self.img = np.zeros(self.img.shape)
-        self._on_img_changed()
+        self._request_draw()
+        self._request_callback()
 
     def _on_btn_color(self, event):
         for b in self.buttons:
