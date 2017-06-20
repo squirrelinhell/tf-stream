@@ -3,18 +3,16 @@
 import os
 import sys
 
-if len(sys.argv) < 2:
-    sys.stderr.write("\nUsage:\n\tinputimage.py <some.model>\n" +
-        "\tinputimage.py <some.model> <image>\n\n")
+if len(sys.argv) < 4:
+    sys.stderr.write("\nUsage:\n\t");
+    sys.stderr.write("drawimage.py <dir.model> <input tensor> <output tensor> [ <image> ]\n\n")
     sys.exit(1)
 
-modeldir = sys.argv[1]
-
-if not os.path.isdir(modeldir):
+if not os.path.isdir(sys.argv[1]):
     sys.stderr.write("Error: '%s' is not a directory\n" % modeldir)
     sys.exit(1)
 
-import loadsave
+import functions
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -171,22 +169,9 @@ class ImageEditor():
         btn.on_clicked(action)
         self.buttons.append(btn)
 
-def tensor_image_shape(v):
-    nontrivial = []
-    for s in v.shape:
-        if s.value != None and s.value >= 2:
-            nontrivial.append(s.value)
-    if len(nontrivial) == 1:
-        return nontrivial + [1]
-    if len(nontrivial) == 2:
-        return nontrivial
-    if len(nontrivial) == 3 and nontrivial[2] in [3, 4]:
-        return nontrivial
-    raise ValueError("Invalid tensor shape: " + str(v.shape))
-
 def load_image(shape):
-    if len(sys.argv) >= 3:
-        img = scipy.ndimage.imread(sys.argv[2])
+    if len(sys.argv) >= 5:
+        img = scipy.ndimage.imread(sys.argv[4])
         if img.shape[0:2] != shape[0:2]:
             img = scipy.misc.imresize(img, shape[0:2])
         if len(img.shape) >= 3 and len(shape) < 3:
@@ -195,22 +180,24 @@ def load_image(shape):
         return np.broadcast_to(img.T, shape[::-1]).T
     return np.zeros(shape)
 
-sess, x, y = loadsave.load(modeldir)
-fig = plt.figure()
+with functions.load_session(sys.argv[1]) as sess:
+    x = sess.graph.get_tensor_by_name(sys.argv[2])
+    y = sess.graph.get_tensor_by_name(sys.argv[3])
 
-fig.add_subplot(1,2,1).set_title('Input')
-image_editor = ImageEditor(load_image(tensor_image_shape(x)))
+    fig = plt.figure()
+    fig.add_subplot(1,2,1).set_title('Input')
+    image_editor = ImageEditor(load_image(functions.tensor_image_shape(x)))
 
-def out_img():
-    x_val = image_editor.get_image()
-    x_shape = [1 if v == None else v for v in x.shape.as_list()]
-    x_val = np.reshape(x_val, x_shape)
-    y_val = sess.run(y, feed_dict={x: x_val})
-    y_val = np.reshape(y_val, tensor_image_shape(y))
-    return y_val
+    def out_img():
+        x_val = image_editor.get_image()
+        x_shape = [1 if v == None else v for v in x.shape.as_list()]
+        x_val = np.reshape(x_val, x_shape)
+        y_val = sess.run(y, feed_dict={x: x_val})
+        y_val = np.reshape(y_val, functions.tensor_image_shape(y))
+        return y_val
 
-fig.add_subplot(1,2,2).set_title('Output')
-out_plt = plt.imshow(out_img(), vmin=0.0, vmax=1.0, cmap="gray")
-image_editor.on_changed(lambda: out_plt.set_data(out_img()))
+    fig.add_subplot(1,2,2).set_title('Output')
+    out_plt = plt.imshow(out_img(), vmin=0.0, vmax=1.0, cmap="gray")
+    image_editor.on_changed(lambda: out_plt.set_data(out_img()))
 
-plt.show()
+    plt.show()

@@ -37,12 +37,13 @@ for x in $(seq 0 $GRID $(($W - $PATCH))); do
             -format "%[fx:round(mean*1000)]" info:) || exit 1
         [ "$MEAN" -ge 40 ] || continue
         mkdir -p "$2" || exit 1
-        OUTFILE="$2/$RANDOM$RANDOM.png"
+        OUTFILE="$2/$RANDOM$RANDOM.jpg"
         convert "$TMPDIR/edges.ppm" \
             -crop ${PATCH}x${PATCH}+$x+$y \
             "$TMPDIR/orig.ppm" \
             -crop ${PATCH}x${PATCH}+$x+$y \
-            +append +repage "$OUTFILE" || exit 1
+            +append +repage \
+            -quality 70 "$OUTFILE" || exit 1
         let OUTNUM=OUTNUM+1
     done
 done

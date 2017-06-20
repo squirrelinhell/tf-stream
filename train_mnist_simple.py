@@ -4,19 +4,13 @@ import os
 import sys
 
 if len(sys.argv) < 2:
-    sys.stderr.write("\nUsage:\n\ttrain_mnist_simple.py <out.model>\n\n")
+    sys.stderr.write("\nUsage:\n\t");
+    sys.stderr.write("train_mnist_simple.py <dir.model>\n\n")
     sys.exit(1)
 
-modeldir = sys.argv[1]
-
-if os.path.exists(modeldir):
-    sys.stderr.write("Error: file '%s' exists\n" % modeldir)
-    sys.exit(1)
-
-import loadsave
+import functions
 import numpy as np
 import tensorflow as tf
-import tensorflow.examples.tutorials.mnist as tf_mnist
 
 def dense(x, o):
     i = x.shape[1].value
@@ -25,49 +19,81 @@ def dense(x, o):
     w = tf.Variable(tf.random_normal([i, o], stddev=sd))
     return tf.matmul(x, w) + b
 
-x = tf.placeholder(tf.float32, [None, 28, 28])
+def create_model():
+    x = tf.placeholder(tf.float32, [None, 28, 28], name="x")
 
-y = tf.reshape(x, [-1, 28*28])
-y = dense(y, 100)
-y = tf.nn.relu(y)
-y = dense(y, 100)
-y = tf.nn.relu(y)
-y = dense(y, 10)
+    y = tf.reshape(x, [-1, 28*28])
+    y = dense(y, 100)
+    y = tf.nn.relu(y)
+    y = dense(y, 100)
+    y = tf.nn.relu(y)
+    y = dense(y, 10)
 
-t = tf.placeholder(tf.float32, [None, 10])
+    t = tf.placeholder(tf.float32, [None, 10], name="t")
 
-loss = tf.reduce_mean(
-    tf.nn.softmax_cross_entropy_with_logits(labels=t, logits=y)
-)
+    loss = tf.reduce_mean(
+        tf.nn.softmax_cross_entropy_with_logits(labels=t, logits=y),
+        name="loss"
+    )
 
-accuracy = tf.reduce_mean(tf.cast(
-    tf.equal(tf.argmax(y, 1), tf.argmax(t, 1)),
-    tf.float32
-))
+    accuracy = tf.reduce_mean(
+        tf.cast(
+            tf.equal(tf.argmax(y, 1), tf.argmax(t, 1)),
+            tf.float32
+        ),
+        name="accuracy"
+    )
 
-y = tf.nn.softmax(y, 1)
+    y = tf.nn.softmax(y, 1, name="y")
 
-sess = tf.InteractiveSession()
-tf.global_variables_initializer().run()
-train_step = tf.train.GradientDescentOptimizer(0.1).minimize(loss)
+def get_stats(dataset):
+    sess = tf.get_default_session()
+    x = sess.graph.get_tensor_by_name("x:0")
+    t = sess.graph.get_tensor_by_name("t:0")
+    loss = sess.graph.get_tensor_by_name("loss:0")
+    accuracy = sess.graph.get_tensor_by_name("accuracy:0")
 
-def stat(d):
+    x_v = np.reshape(dataset.images, [-1, 28, 28])
     v = sess.run(
         [accuracy, loss],
-        feed_dict={x: np.reshape(d.images, [-1, 28, 28]), t: d.labels}
+        feed_dict={x: x_v, t: dataset.labels}
     )
     return "accuracy=%f, loss=%f" % (v[0], v[1])
 
+def train_model(next_batch):
+    sess = tf.get_default_session()
+    x = sess.graph.get_tensor_by_name("x:0")
+    t = sess.graph.get_tensor_by_name("t:0")
+    loss = sess.graph.get_tensor_by_name("loss:0")
+
+    train_step = tf.train.GradientDescentOptimizer(0.1).minimize(loss)
+    for _ in range(300):
+        x_v, t_v = next_batch()
+        x_v = np.reshape(x_v, [-1, 28, 28])
+        sess.run(train_step, feed_dict={x: x_v, t: t_v})
+
+def load_session():
+    if os.path.exists(sys.argv[1]):
+        print("Loading model from:", sys.argv[1])
+        return functions.load_session(sys.argv[1])
+    else:
+        print("Creating a new model...")
+        create_model()
+        session = tf.Session()
+        session.run(tf.global_variables_initializer())
+        return session
+
+import tensorflow.examples.tutorials.mnist as tf_mnist
 mnist = tf_mnist.input_data.read_data_sets("/tmp/mnist", one_hot=True)
 
-def get_batch():
-    batch_xs, batch_ts = mnist.train.next_batch(200)
-    batch_xs = np.reshape(batch_xs, [-1, 28, 28])
-    return {x: batch_xs, t: batch_ts}
+with load_session() as s:
+    print("Training model...")
+    for e in range(10):
+        train_model(lambda: mnist.train.next_batch(200))
+        print(
+            "Stats:   [train] ", get_stats(mnist.train),
+            "   [test] ", get_stats(mnist.test)
+        )
 
-for _ in range(20):
-    for _ in range(300):
-        sess.run(train_step, feed_dict=get_batch())
-    print("train: ", stat(mnist.train), "   test: ", stat(mnist.test))
-
-print("model saved to: " + loadsave.save(modeldir, sess, x, y))
+    print("Saving model to:", sys.argv[1])
+    functions.save_session(s, sys.argv[1])
