@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import os
 import sys
 import threading
 import time
@@ -23,7 +24,6 @@ def image_to_tk(image):
 class MainWindow:
     def __init__(self, in_shape, out_shape, process_img):
         self.in_size = in_shape[0:2]
-        self.out_size = out_shape[0:2]
         self.in_channels = in_shape[2] if len(in_shape) >= 3 else 1
         self.process_img = process_img
 
@@ -102,6 +102,9 @@ class MainWindow:
                 continue
 
             img = self.capture_image()
+            if img.shape[0:2] != self.in_size:
+                img = scipy.misc.imresize(img, self.in_size)
+
             if self.prev_capture is not None:
                 diff = np.absolute(self.prev_capture - img)
                 if np.sum(diff) < 10.0:
@@ -109,12 +112,9 @@ class MainWindow:
                     continue
             self.prev_capture = img
 
-            if self.capture_size != self.in_size:
-                img = scipy.misc.imresize(img, self.in_size)
-
             img = self.process_img(img)
 
-            if self.display_size != self.out_size:
+            if self.display_size != img.shape[0:2]:
                 img = scipy.misc.imresize(
                     img, self.display_size,
                     interp = "nearest"
@@ -164,5 +164,5 @@ with functions.load_session(sys.argv[1]) as sess:
         return y_img.astype(np.uint8)
 
     app = MainWindow(x_shape, y_shape, out_img)
-    app.window.title(sys.argv[1])
+    app.window.title(os.path.basename(sys.argv[1]))
     app.window.mainloop()
