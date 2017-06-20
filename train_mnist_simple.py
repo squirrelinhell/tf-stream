@@ -2,15 +2,15 @@
 
 import os
 import sys
+import functions
+import numpy as np
+import tensorflow as tf
+import tensorflow.examples.tutorials.mnist as tf_mnist
 
 if len(sys.argv) < 2:
     sys.stderr.write("\nUsage:\n\t");
     sys.stderr.write("train_mnist_simple.py <dir.model>\n\n")
     sys.exit(1)
-
-import functions
-import numpy as np
-import tensorflow as tf
 
 def dense(x, o):
     i = x.shape[1].value
@@ -83,7 +83,6 @@ def load_session():
         session.run(tf.global_variables_initializer())
         return session
 
-import tensorflow.examples.tutorials.mnist as tf_mnist
 mnist = tf_mnist.input_data.read_data_sets("/tmp/mnist", one_hot=True)
 
 with load_session() as s:

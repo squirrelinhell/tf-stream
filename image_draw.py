@@ -2,16 +2,6 @@
 
 import os
 import sys
-
-if len(sys.argv) < 4:
-    sys.stderr.write("\nUsage:\n\t");
-    sys.stderr.write("drawimage.py <dir.model> <input tensor> <output tensor> [ <image> ]\n\n")
-    sys.exit(1)
-
-if not os.path.isdir(sys.argv[1]):
-    sys.stderr.write("Error: '%s' is not a directory\n" % modeldir)
-    sys.exit(1)
-
 import functions
 import numpy as np
 import tensorflow as tf
@@ -20,6 +10,15 @@ import matplotlib.widgets
 import scipy.ndimage
 import scipy.misc
 import threading
+
+if len(sys.argv) < 4:
+    sys.stderr.write("\nUsage:\n\t");
+    sys.stderr.write("drawimage.py <dir.model> <input tensor> <output tensor> [ <image> ]\n\n")
+    sys.exit(1)
+
+if not os.path.isdir(sys.argv[1]):
+    sys.stderr.write("Error: '%s' is not a directory\n" % sys.argv[1])
+    sys.exit(1)
 
 class ImageEditor():
     def __init__(self, img):

@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/bin/false
 
 import os
 import tensorflow as tf
@@ -48,7 +48,7 @@ def tensor_image_shape(v):
         if s.value != None and s.value >= 2:
             nontrivial.append(s.value)
     if len(nontrivial) == 1:
-        return nontrivial + [1]
+        return [1] + nontrivial
     if len(nontrivial) == 2:
         return nontrivial
     if len(nontrivial) == 3 and nontrivial[2] in [3, 4]:
