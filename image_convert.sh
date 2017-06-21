@@ -41,8 +41,8 @@ OUTPUT="${@: -1}"
 case "x$OUTPUT" in
     x) OUTPUT="-depth 8 $FMT:-" ;;
     x-) OUTPUT='' ;;
-    x-*) OUTPUT="-depth 8 $FMT:-" ;;
-    *) OUTPUT='' ;;
+    x*:-) OUTPUT='' ;;
+    *) OUTPUT="-depth 8 $FMT:-" ;;
 esac
 
 TMPDIR=$(mktemp -d) || exit 1

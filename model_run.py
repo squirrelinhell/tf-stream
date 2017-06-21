@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import sys
+import time
 import numpy as np
 import functions
 
