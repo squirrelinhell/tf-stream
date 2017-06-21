@@ -26,7 +26,7 @@ class CaptureWindow(RedBorder):
     def __init__(self, master, shape):
         RedBorder.__init__(self, master)
         self.shape = shape
-        self.pos = self.get_pos()
+        self.pos = 20, 20
         self.mouse_pos = None
 
         self.borders = [self] + [self.add_border() for x in range(3)]
@@ -96,8 +96,8 @@ class CaptureWindow(RedBorder):
                 continue
 
             img = self.capture_image()
-            if img.shape[0:2] != self.shape[0:2]:
-                img = scipy.misc.imresize(img, self.shape[0:2])
+            if img.shape[0:2] != self.shape[1::-1]:
+                img = scipy.misc.imresize(img, self.shape[1::-1])
 
             if self.prev_capture is not None:
                 diff = np.absolute(self.prev_capture - img)

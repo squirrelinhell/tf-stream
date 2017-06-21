@@ -46,5 +46,5 @@ if __name__ == "__main__":
         sys.stderr.write("Error: Invalid image shape: %s\n" % dims)
         sys.exit(1)
 
-    app = ImageView(dims)
+    app = ImageView(dims[1::-1] + dims[2:])
     plt.show()
