@@ -108,6 +108,7 @@ class CaptureWindow(RedBorder):
             self.prev_capture = img
 
             sys.stdout.buffer.write(img.tobytes())
+            sys.stdout.buffer.flush()
 
 if __name__ == "__main__":
 
