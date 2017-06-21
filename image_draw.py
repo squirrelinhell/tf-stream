@@ -11,11 +11,6 @@ import scipy.ndimage
 import scipy.misc
 import threading
 
-if len(sys.argv) < 4:
-    sys.stderr.write("\nUsage:\n\t");
-    sys.stderr.write("drawimage.py <dir.model> <input tensor> <output tensor> [ <image> ]\n\n")
-    sys.exit(1)
-
 if not os.path.isdir(sys.argv[1]):
     sys.stderr.write("Error: '%s' is not a directory\n" % sys.argv[1])
     sys.exit(1)
@@ -179,24 +174,31 @@ def load_image(shape):
         return np.broadcast_to(img.T, shape[::-1]).T
     return np.zeros(shape)
 
-with functions.load_session(sys.argv[1]) as sess:
-    x = sess.graph.get_tensor_by_name(sys.argv[2])
-    y = sess.graph.get_tensor_by_name(sys.argv[3])
+if __name__ == "__main__":
 
-    fig = plt.figure()
-    fig.add_subplot(1,2,1).set_title('Input')
-    image_editor = ImageEditor(load_image(functions.tensor_image_shape(x)))
+    if len(sys.argv) < 4:
+        sys.stderr.write("\nUsage:\n\t");
+        sys.stderr.write("drawimage.py <dir.model> <input tensor> <output tensor> [ <image> ]\n\n")
+        sys.exit(1)
 
-    def out_img():
-        x_val = image_editor.get_image()
-        x_shape = [1 if v == None else v for v in x.shape.as_list()]
-        x_val = np.reshape(x_val, x_shape)
-        y_val = sess.run(y, feed_dict={x: x_val})
-        y_val = np.reshape(y_val, functions.tensor_image_shape(y))
-        return y_val
+    with functions.load_session(sys.argv[1]) as sess:
+        x = sess.graph.get_tensor_by_name(sys.argv[2])
+        y = sess.graph.get_tensor_by_name(sys.argv[3])
 
-    fig.add_subplot(1,2,2).set_title('Output')
-    out_plt = plt.imshow(out_img(), vmin=0.0, vmax=1.0, cmap="gray")
-    image_editor.on_changed(lambda: out_plt.set_data(out_img()))
+        fig = plt.figure()
+        fig.add_subplot(1,2,1).set_title('Input')
+        image_editor = ImageEditor(load_image(functions.tensor_image_shape(x)))
 
-    plt.show()
+        def out_img():
+            x_val = image_editor.get_image()
+            x_shape = [1 if v == None else v for v in x.shape.as_list()]
+            x_val = np.reshape(x_val, x_shape)
+            y_val = sess.run(y, feed_dict={x: x_val})
+            y_val = np.reshape(y_val, functions.tensor_image_shape(y))
+            return y_val
+
+        fig.add_subplot(1,2,2).set_title('Output')
+        out_plt = plt.imshow(out_img(), vmin=0.0, vmax=1.0, cmap="gray")
+        image_editor.on_changed(lambda: out_plt.set_data(out_img()))
+
+        plt.show()

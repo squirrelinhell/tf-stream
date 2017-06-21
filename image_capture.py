@@ -12,11 +12,6 @@ import numpy as np
 import pyscreenshot
 import functions
 
-if len(sys.argv) < 4:
-    sys.stderr.write("\nUsage:\n\t");
-    sys.stderr.write("captureimage.py <dir.model> <input tensor> <output tensor>\n\n")
-    sys.exit(1)
-
 def image_to_tk(image):
     image = PIL.Image.fromarray(image)
     return PIL.ImageTk.PhotoImage(image)
@@ -146,23 +141,30 @@ class RedBorder:
         self.window.geometry("%dx%d+%d+%d" % (w, h, x, y))
         self.window.deiconify()
 
-with functions.load_session(sys.argv[1]) as sess:
-    x = sess.graph.get_tensor_by_name(sys.argv[2])
-    y = sess.graph.get_tensor_by_name(sys.argv[3])
+if __name__ == "__main__":
 
-    x_shape = functions.tensor_image_shape(x)
-    y_shape = functions.tensor_image_shape(y)
+    if len(sys.argv) < 4:
+        sys.stderr.write("\nUsage:\n\t");
+        sys.stderr.write("captureimage.py <dir.model> <input tensor> <output tensor>\n\n")
+        sys.exit(1)
 
-    def out_img(x_img):
-        x_img = np.reshape(
-            x_img.astype(np.float32) / 255.99,
-            [1 if v == None else v for v in x.shape.as_list()]
-        )
-        y_img = sess.run(y, feed_dict = {x: x_img})
-        y_img = np.reshape(y_img, y_shape)
-        y_img = np.clip(y_img, 0.0, 1.0) * 255.99
-        return y_img.astype(np.uint8)
+    with functions.load_session(sys.argv[1]) as sess:
+        x = sess.graph.get_tensor_by_name(sys.argv[2])
+        y = sess.graph.get_tensor_by_name(sys.argv[3])
 
-    app = MainWindow(x_shape, y_shape, out_img)
-    app.window.title(os.path.basename(sys.argv[1]))
-    app.window.mainloop()
+        x_shape = functions.tensor_image_shape(x)
+        y_shape = functions.tensor_image_shape(y)
+
+        def out_img(x_img):
+            x_img = np.reshape(
+                x_img.astype(np.float32) / 255.99,
+                [1 if v == None else v for v in x.shape.as_list()]
+            )
+            y_img = sess.run(y, feed_dict = {x: x_img})
+            y_img = np.reshape(y_img, y_shape)
+            y_img = np.clip(y_img, 0.0, 1.0) * 255.99
+            return y_img.astype(np.uint8)
+
+        app = MainWindow(x_shape, y_shape, out_img)
+        app.window.title(os.path.basename(sys.argv[1]))
+        app.window.mainloop()

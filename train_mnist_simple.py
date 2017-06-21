@@ -7,11 +7,6 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.examples.tutorials.mnist as tf_mnist
 
-if len(sys.argv) < 2:
-    sys.stderr.write("\nUsage:\n\t");
-    sys.stderr.write("train_mnist_simple.py <dir.model>\n\n")
-    sys.exit(1)
-
 def dense(x, o):
     i = x.shape[1].value
     sd = 2. / (i + o)
@@ -83,16 +78,23 @@ def load_session():
         session.run(tf.global_variables_initializer())
         return session
 
-mnist = tf_mnist.input_data.read_data_sets("/tmp/mnist", one_hot=True)
+if __name__ == "__main__":
 
-with load_session() as s:
-    print("Training model...")
-    for e in range(10):
-        train_model(lambda: mnist.train.next_batch(200))
-        print(
-            "Stats:   [train] ", get_stats(mnist.train),
-            "   [test] ", get_stats(mnist.test)
-        )
+    if len(sys.argv) < 2:
+        sys.stderr.write("\nUsage:\n\t");
+        sys.stderr.write("train_mnist_simple.py <dir.model>\n\n")
+        sys.exit(1)
 
-    print("Saving model to:", sys.argv[1])
-    functions.save_session(s, sys.argv[1])
+    mnist = tf_mnist.input_data.read_data_sets("/tmp/mnist", one_hot=True)
+
+    with load_session() as s:
+        print("Training model...")
+        for e in range(10):
+            train_model(lambda: mnist.train.next_batch(200))
+            print(
+                "Stats:   [train] ", get_stats(mnist.train),
+                "   [test] ", get_stats(mnist.test)
+            )
+
+        print("Saving model to:", sys.argv[1])
+        functions.save_session(s, sys.argv[1])
