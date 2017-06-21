@@ -177,8 +177,8 @@ def load_image(shape):
 if __name__ == "__main__":
 
     if len(sys.argv) < 4:
-        sys.stderr.write("\nUsage:\n\t");
-        sys.stderr.write("drawimage.py <dir.model> <input tensor> <output tensor> [ <image> ]\n\n")
+        sys.stderr.write("\nUsage:\n");
+        sys.stderr.write("\timage_draw.py <dir.model> <input tensor> <output tensor> [ <image> ]\n\n")
         sys.exit(1)
 
     with functions.load_session(sys.argv[1]) as sess:

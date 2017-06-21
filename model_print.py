@@ -11,8 +11,8 @@ def args_str(args):
 if __name__ == "__main__":
 
     if len(sys.argv) < 2:
-        sys.stderr.write("\nUsage:\n\t");
-        sys.stderr.write("print_model.py <dir.model>\n\n")
+        sys.stderr.write("\nUsage:\n");
+        sys.stderr.write("\tmodel_print.py <dir.model>\n\n")
         sys.exit(1)
 
     with functions.load_session(sys.argv[1]) as sess:

@@ -81,8 +81,8 @@ def load_session():
 if __name__ == "__main__":
 
     if len(sys.argv) < 2:
-        sys.stderr.write("\nUsage:\n\t");
-        sys.stderr.write("train_mnist_simple.py <dir.model>\n\n")
+        sys.stderr.write("\nUsage:\n");
+        sys.stderr.write("\ttrain_mnist_simple.py <dir.model>\n\n")
         sys.exit(1)
 
     mnist = tf_mnist.input_data.read_data_sets("/tmp/mnist", one_hot=True)

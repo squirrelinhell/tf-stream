@@ -1,104 +1,103 @@
 #!/usr/bin/python3
 
-import os
 import sys
 import threading
 import time
-import PIL.Image
-import PIL.ImageTk
 import tkinter as tk
 import scipy.misc
 import numpy as np
 import pyscreenshot
-import functions
 
-def image_to_tk(image):
-    image = PIL.Image.fromarray(image)
-    return PIL.ImageTk.PhotoImage(image)
-
-class MainWindow:
-    def __init__(self, in_shape, out_shape, process_img):
-        self.in_size = in_shape[0:2]
-        self.in_channels = in_shape[2] if len(in_shape) >= 3 else 1
-        self.process_img = process_img
-
-        self.window = tk.Tk()
-        self.window.attributes('-topmost', True)
+class RedBorder:
+    def __init__(self, master):
+        self.window = master
+        self.window.overrideredirect(True)
         self.window.resizable(width=False, height=False)
-        self.window.minsize(width = 200, height = 10)
-        self.window.configure(background = 'green')
+        self.window.configure(background = 'red')
 
-        self.capture_size = self.scale_on_screen(in_shape[0:2])
-        self.display_size = self.scale_on_screen(out_shape[0:2])
-        self.borders = [RedBorder(self.window) for i in range(4)]
+    def set_pos(self, x, y, w, h):
+        self.window.geometry("%dx%d+%d+%d" % (w, h, x, y))
+        self.window.deiconify()
 
-        self.frame = tk.Frame(
-            self.window,
-            highlightbackground = "green",
-            highlightcolor = "green",
-            highlightthickness = 5
-        )
-        self.frame.pack()
+    def get_pos(self):
+        return self.window.winfo_x(), self.window.winfo_y()
 
-        self.canvas = tk.Canvas(
-            self.frame,
-            width = self.display_size[1],
-            height = self.display_size[0],
-            highlightthickness = 0
-        )
-        self.canvas.pack()
+class CaptureWindow(RedBorder):
+    def __init__(self, master, shape):
+        RedBorder.__init__(self, master)
+        self.shape = shape
+        self.pos = self.get_pos()
+        self.mouse_pos = None
 
-        self.window.bind("<Configure>", self.on_configure)
-        self.on_configure(None)
+        self.borders = [self] + [self.add_border() for x in range(3)]
+        self.draw_borders()
+        for b in self.borders:
+            self.make_draggable(b.window)
 
         self.prev_capture = None
-        self.start_update_thread()
+        self.start_capture_thread()
 
-    def on_configure(self, event):
-        self.last_moved = time.time()
-        self.draw_borders()
-
-    def scale_on_screen(self, dims):
-        factor = 256.0 / max(dims)
-        if factor <= 1.0:
-            return dims
-        return int(dims[0] * factor + 0.5), int(dims[1] * factor + 0.5)
+    def add_border(self):
+        return RedBorder(tk.Toplevel(self.window))
 
     def draw_borders(self):
-        x, y = self.window.winfo_x(), self.window.winfo_y()
-        w, h = self.capture_size
-        line = 5
-        self.borders[0].set_pos(x-w-line*2, y, w+line*2, line)
-        self.borders[1].set_pos(x-w-line*2, y+h+line, w+line*2, line)
-        self.borders[2].set_pos(x-w-line*2, y+line, line, h)
-        self.borders[3].set_pos(x-line, y+line, line, h)
-        return x-w-line, y+line
+        self.last_moved = time.time()
+        x, y = self.pos
+        w, h = self.shape[0:2]
+        line = 10
+        self.borders[0].set_pos(x-line, y-line, w+line*2, line)
+        self.borders[1].set_pos(x-line, y+h, w+line*2, line)
+        self.borders[2].set_pos(x-line, y, line, h)
+        self.borders[3].set_pos(x+w, y, line, h)
 
-    def start_update_thread(self):
-        t = threading.Thread(target = self.update)
-        t.daemon = True
+    def make_draggable(self, w):
+        w.bind("<ButtonPress-1>", self.on_button_press)
+        w.bind("<ButtonRelease-1>", self.on_button_release)
+        w.bind("<B1-Motion>", self.on_mouse_move)
+
+    def on_button_press(self, event):
+        self.mouse_pos = event.x, event.y
+        for b in self.borders:
+            b.window.config(cursor = "fleur")
+
+    def on_button_release(self, event):
+        self.on_mouse_move(event)
+        self.mouse_pos = None
+        for b in self.borders:
+            b.window.config(cursor = "arrow")
+
+    def on_mouse_move(self, event):
+        if self.mouse_pos is None:
+            return
+        diff = event.x - self.mouse_pos[0], event.y - self.mouse_pos[1]
+        self.pos = self.pos[0] + diff[0], self.pos[1] + diff[1]
+        self.draw_borders()
+
+    def start_capture_thread(self):
+        t = threading.Thread(target = self.capture_thread)
         t.start()
 
     def capture_image(self):
-        x, y = self.draw_borders()
-        w, h = self.capture_size
+        x, y = self.pos
+        w, h = self.shape[0:2]
         im = pyscreenshot.grab(bbox = (x, y, x+w, y+h))
-        im = im.convert(
-            "RGBA" if self.in_channels == 4
-            else "RGB" if self.in_channels == 3
-            else "L"
-        )
-        return np.asarray(im)
+        if self.shape[2] == 3:
+            im = im.convert("RGB")
+        elif self.shape[2] == 1:
+            im = im.convert("L")
+        else:
+            raise ValueError("Invalid number of channels")
+        return np.asarray(im, dtype="uint8")
 
-    def update(self):
+    def capture_thread(self):
         while True:
             if time.time() < self.last_moved + 0.3:
-                time.sleep(0.1)
+                time.sleep(self.last_moved + 0.3 - time.time())
                 continue
 
             img = self.capture_image()
-            if img.shape[0:2] != self.in_size:
-                img = scipy.misc.imresize(img, self.in_size)
+            if img.shape[0:2] != self.shape[0:2]:
+                img = scipy.misc.imresize(img, self.shape[0:2])
 
             if self.prev_capture is not None:
                 diff = np.absolute(self.prev_capture - img)
@@ -107,64 +106,26 @@ class MainWindow:
                     continue
             self.prev_capture = img
 
-            img = self.process_img(img)
-
-            if self.display_size != img.shape[0:2]:
-                img = scipy.misc.imresize(
-                    img, self.display_size,
-                    interp = "nearest"
-                )
-
-            self.display = image_to_tk(img)
-            self.window.after(0, self.update_display)
-
-    def update_display(self):
-        self.canvas.image = self.display
-        self.canvas.create_image(
-            0, 0,
-            image = self.canvas.image,
-            anchor = tk.NW
-        )
-
-class RedBorder:
-    def __init__(self, master):
-        self.window = tk.Toplevel(master)
-        self.window.transient(master)
-        self.window.configure(background = 'red')
-        self.window.overrideredirect(True)
-        self.window.resizable(width=False, height=False)
-
-    def hide(self):
-        self.window.withdraw()
-
-    def set_pos(self, x, y, w, h):
-        self.window.geometry("%dx%d+%d+%d" % (w, h, x, y))
-        self.window.deiconify()
+            sys.stdout.buffer.write(img.tobytes())
 
 if __name__ == "__main__":
 
-    if len(sys.argv) < 4:
-        sys.stderr.write("\nUsage:\n\t");
-        sys.stderr.write("captureimage.py <dir.model> <input tensor> <output tensor>\n\n")
+    if len(sys.argv) < 2:
+        sys.stderr.write("\nUsage:\n");
+        sys.stderr.write("\timage_capture.py WxH\n")
+        sys.stderr.write("\timage_capture.py WxHx3\n\n")
         sys.exit(1)
 
-    with functions.load_session(sys.argv[1]) as sess:
-        x = sess.graph.get_tensor_by_name(sys.argv[2])
-        y = sess.graph.get_tensor_by_name(sys.argv[3])
+    dims = [int(x) for x in sys.argv[1].split("x")]
+    if len(dims) == 2:
+        dims += [1]
+    if len(dims) != 3 or not dims[2] in (1,3) or min(dims[0:2]) < 2:
+        sys.stderr.write("Error: Invalid image shape: %s\n" % dims)
+        sys.exit(1)
 
-        x_shape = functions.tensor_image_shape(x)
-        y_shape = functions.tensor_image_shape(y)
+    if sys.stdout.isatty():
+        sys.stderr.write("Refusing to write binary data to a terminal\n")
+        sys.exit(1)
 
-        def out_img(x_img):
-            x_img = np.reshape(
-                x_img.astype(np.float32) / 255.99,
-                [1 if v == None else v for v in x.shape.as_list()]
-            )
-            y_img = sess.run(y, feed_dict = {x: x_img})
-            y_img = np.reshape(y_img, y_shape)
-            y_img = np.clip(y_img, 0.0, 1.0) * 255.99
-            return y_img.astype(np.uint8)
-
-        app = MainWindow(x_shape, y_shape, out_img)
-        app.window.title(os.path.basename(sys.argv[1]))
-        app.window.mainloop()
+    app = CaptureWindow(tk.Tk(), dims)
+    app.window.mainloop()
