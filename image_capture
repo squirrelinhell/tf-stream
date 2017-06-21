@@ -10,7 +10,7 @@ import pyscreenshot
 import functions
 
 class RedBorder:
-    def __init__(self, master):
+    def configure(self, master):
         self.window = master
         self.window.overrideredirect(True)
         self.window.resizable(width=False, height=False)
@@ -24,27 +24,33 @@ class RedBorder:
         return self.window.winfo_x(), self.window.winfo_y()
 
 class CaptureWindow(RedBorder):
-    def __init__(self, master, shape):
-        RedBorder.__init__(self, master)
+    def __init__(self, shape):
         self.shape = shape
         self.pos = 20, 20
         self.mouse_pos = None
+        self.prev_capture = None
+        self.last_moved = time.time()
 
-        self.borders = [self] + [self.add_border() for x in range(3)]
+    def show(self):
+        self.configure(tk.Tk())
+        self.window.mainloop()
+
+    def configure(self, master):
+        RedBorder.configure(self, master)
+        self.borders = [self] + [self.new_border() for x in range(3)]
         self.draw_borders()
         for b in self.borders:
             self.make_draggable(b.window)
 
-        self.prev_capture = None
-        self.start_capture_thread()
-
-    def add_border(self):
-        return RedBorder(tk.Toplevel(self.window))
+    def new_border(self):
+        b = RedBorder()
+        b.configure(tk.Toplevel(self.window))
+        return b
 
     def draw_borders(self):
         self.last_moved = time.time()
         x, y = self.pos
-        h, w = self.shape[0:2]
+        h, w = self.shape
         line = 10
         self.borders[0].set_pos(x-line, y-line, w+line*2, line)
         self.borders[1].set_pos(x-line, y+h, w+line*2, line)
@@ -74,41 +80,40 @@ class CaptureWindow(RedBorder):
         self.pos = self.pos[0] + diff[0], self.pos[1] + diff[1]
         self.draw_borders()
 
-    def start_capture_thread(self):
-        t = threading.Thread(target = self.capture_thread)
-        t.start()
+def capture_image(pos, shape):
+    x, y = pos
+    h, w = shape[0:2]
+    im = pyscreenshot.grab(bbox = (x, y, x+w, y+h))
+    if shape[2:] == [3]:
+        im = im.convert("RGB")
+    elif shape[2:] in ([], [1]):
+        im = im.convert("L")
+    else:
+        raise ValueError("Invalid number of channels")
+    return np.asarray(im, dtype="uint8")
 
-    def capture_image(self):
-        x, y = self.pos
-        h, w = self.shape[0:2]
-        im = pyscreenshot.grab(bbox = (x, y, x+w, y+h))
-        if self.shape[2:] == [3]:
-            im = im.convert("RGB")
-        elif self.shape[2:] in ([], [1]):
-            im = im.convert("L")
-        else:
-            raise ValueError("Invalid number of channels")
-        return np.asarray(im, dtype="uint8")
+def capture_stream(ui, shape):
+    while True:
+        if time.time() < ui.last_moved + 0.3:
+            time.sleep(ui.last_moved + 0.3 - time.time())
+            continue
 
-    def capture_thread(self):
-        while True:
-            if time.time() < self.last_moved + 0.3:
-                time.sleep(self.last_moved + 0.3 - time.time())
+        img = capture_image(ui.pos, shape)
+        if img.shape[0:2] != shape[0:2]:
+            img = scipy.misc.imresize(img, shape[0:2])
+
+        if ui.prev_capture is not None:
+            diff = np.absolute(ui.prev_capture - img)
+            if np.sum(diff) < 10.0:
+                time.sleep(0.3)
                 continue
+        ui.prev_capture = img
 
-            img = self.capture_image()
-            if img.shape[0:2] != self.shape[0:2]:
-                img = scipy.misc.imresize(img, self.shape[0:2])
-
-            if self.prev_capture is not None:
-                diff = np.absolute(self.prev_capture - img)
-                if np.sum(diff) < 10.0:
-                    time.sleep(0.3)
-                    continue
-            self.prev_capture = img
-
+        try:
             sys.stdout.buffer.write(img.tobytes())
             sys.stdout.buffer.flush()
+        except:
+            break
 
 if __name__ == "__main__":
 
@@ -123,5 +128,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     shape = functions.str_to_image_shape(sys.argv[1])
-    app = CaptureWindow(tk.Tk(), shape)
-    app.window.mainloop()
+    ui = CaptureWindow(shape[0:2])
+    thread = threading.Thread(target = ui.show)
+    thread.daemon = True
+    thread.start()
+    try:
+        capture_stream(ui, shape)
+    except KeyboardInterrupt:
+        pass

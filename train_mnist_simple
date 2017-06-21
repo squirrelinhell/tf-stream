@@ -82,7 +82,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 2:
         sys.stderr.write("\nUsage:\n\n");
-        sys.stderr.write("\ttrain_mnist_simple <dir.model>\n\n")
+        sys.stderr.write("\ttrain_mnist_simple <output.model>\n\n")
         sys.exit(1)
 
     mnist = tf_mnist.input_data.read_data_sets(

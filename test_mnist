@@ -1,0 +1,27 @@
+#!/bin/bash
+
+INFO=$'
+Usage:
+
+\ttest_mnist <saved.model>
+\ttest_mnist <saved.model> <images dir>
+'
+
+if [ ! -d "$1" ]; then
+    echo "$INFO" 1>&2
+    exit 1
+fi
+
+SCRIPT_DIR=$(readlink -m "$0/..") || exit 1
+export PATH="$SCRIPT_DIR:$PATH"
+
+if [ "x$2" = x ]; then
+    image_capture 200,200 | \
+        image_write 200,200 -resize 28x28 GRAY:- | \
+        model_run "$1" x:0 y:0 | \
+        image_show 10,1 || exit 1
+else
+    image_read 28,28 "$2" | \
+        model_run "$1" x:0 y:0 | \
+        od -An -t u1 -w10
+fi

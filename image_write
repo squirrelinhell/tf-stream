@@ -7,9 +7,6 @@ Usage:
 \timage_write H,W,3 [ ... ImageMagick options ... ]
 '
 
-SIZE=
-FMT=
-
 case "$1" in
     *,*,*,*)
         echo "$INFO" 1>&2
@@ -42,6 +39,8 @@ trap "rm -rf $TMPDIR" EXIT
 
 SCENE=1
 while dd bs=1 count=$BYTES of="$TMPDIR/chunk" status=none ; do
+    READ_BYTES=$(stat -c%s "$TMPDIR/chunk")
+    [ "x$READ_BYTES" = "x$BYTES" ] || exit 1
     convert \
         -size "$SIZE" -depth 8 "$FMT:$TMPDIR/chunk" \
         -scene "$SCENE" "$@" </dev/null || exit 1
