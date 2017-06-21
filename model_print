@@ -1,6 +1,12 @@
 #!/usr/bin/python3
 
 import sys
+
+if len(sys.argv) < 2:
+    sys.stderr.write("\nUsage:\n\n");
+    sys.stderr.write("\tmodel_print <dir.model>\n\n")
+    sys.exit(1)
+
 import functions
 
 def args_str(args):
@@ -9,12 +15,6 @@ def args_str(args):
     ) + "]"
 
 if __name__ == "__main__":
-
-    if len(sys.argv) < 2:
-        sys.stderr.write("\nUsage:\n\n");
-        sys.stderr.write("\tmodel_print <dir.model>\n\n")
-        sys.exit(1)
-
     with functions.load_session(sys.argv[1]) as sess:
         for op in sess.graph.get_operations():
             print(
