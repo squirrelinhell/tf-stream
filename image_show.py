@@ -5,6 +5,7 @@ import threading
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+import functions
 
 class ImageView():
     def __init__(self, shape):
@@ -36,15 +37,11 @@ class ImageView():
 if __name__ == "__main__":
 
     if len(sys.argv) < 2:
-        sys.stderr.write("\nUsage:\n");
-        sys.stderr.write("\timage_show.py WxH\n")
-        sys.stderr.write("\timage_show.py WxHx3\n\n")
+        sys.stderr.write("\nUsage:\n\n");
+        sys.stderr.write("\timage_show.py H,W\n")
+        sys.stderr.write("\timage_show.py H,W,3\n\n")
         sys.exit(1)
 
-    dims = [int(x) for x in sys.argv[1].split("x")]
-    if len(dims) not in (2,3) or min(dims[0:2]) < 2:
-        sys.stderr.write("Error: Invalid image shape: %s\n" % dims)
-        sys.exit(1)
-
-    app = ImageView(dims[1::-1] + dims[2:])
+    shape = functions.str_to_image_shape(sys.argv[1])
+    app = ImageView(shape)
     plt.show()

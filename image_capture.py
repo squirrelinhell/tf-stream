@@ -7,6 +7,7 @@ import tkinter as tk
 import scipy.misc
 import numpy as np
 import pyscreenshot
+import functions
 
 class RedBorder:
     def __init__(self, master):
@@ -43,7 +44,7 @@ class CaptureWindow(RedBorder):
     def draw_borders(self):
         self.last_moved = time.time()
         x, y = self.pos
-        w, h = self.shape[0:2]
+        h, w = self.shape[0:2]
         line = 10
         self.borders[0].set_pos(x-line, y-line, w+line*2, line)
         self.borders[1].set_pos(x-line, y+h, w+line*2, line)
@@ -79,11 +80,11 @@ class CaptureWindow(RedBorder):
 
     def capture_image(self):
         x, y = self.pos
-        w, h = self.shape[0:2]
+        h, w = self.shape[0:2]
         im = pyscreenshot.grab(bbox = (x, y, x+w, y+h))
-        if self.shape[2] == 3:
+        if self.shape[2:] == [3]:
             im = im.convert("RGB")
-        elif self.shape[2] == 1:
+        elif self.shape[2:] in ([], [1]):
             im = im.convert("L")
         else:
             raise ValueError("Invalid number of channels")
@@ -96,8 +97,8 @@ class CaptureWindow(RedBorder):
                 continue
 
             img = self.capture_image()
-            if img.shape[0:2] != self.shape[1::-1]:
-                img = scipy.misc.imresize(img, self.shape[1::-1])
+            if img.shape[0:2] != self.shape[0:2]:
+                img = scipy.misc.imresize(img, self.shape[0:2])
 
             if self.prev_capture is not None:
                 diff = np.absolute(self.prev_capture - img)
@@ -111,21 +112,15 @@ class CaptureWindow(RedBorder):
 if __name__ == "__main__":
 
     if len(sys.argv) < 2:
-        sys.stderr.write("\nUsage:\n");
-        sys.stderr.write("\timage_capture.py WxH\n")
-        sys.stderr.write("\timage_capture.py WxHx3\n\n")
-        sys.exit(1)
-
-    dims = [int(x) for x in sys.argv[1].split("x")]
-    if len(dims) == 2:
-        dims += [1]
-    if len(dims) != 3 or not dims[2] in (1,3) or min(dims[0:2]) < 2:
-        sys.stderr.write("Error: Invalid image shape: %s\n" % dims)
+        sys.stderr.write("\nUsage:\n\n");
+        sys.stderr.write("\timage_capture.py H,W\n")
+        sys.stderr.write("\timage_capture.py H,W,3\n\n")
         sys.exit(1)
 
     if sys.stdout.isatty():
         sys.stderr.write("Refusing to write binary data to a terminal\n")
         sys.exit(1)
 
-    app = CaptureWindow(tk.Tk(), dims)
+    shape = functions.str_to_image_shape(sys.argv[1])
+    app = CaptureWindow(tk.Tk(), shape)
     app.window.mainloop()

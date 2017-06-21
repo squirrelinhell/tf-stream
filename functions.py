@@ -42,15 +42,15 @@ def save_session(sess, path):
         )
     return path
 
-def tensor_image_shape(v):
-    nontrivial = []
-    for s in v.shape:
-        if s.value != None and s.value >= 2:
-            nontrivial.append(s.value)
-    if len(nontrivial) == 1:
-        return [1] + nontrivial
-    if len(nontrivial) == 2:
-        return nontrivial
-    if len(nontrivial) == 3 and nontrivial[2] in [3, 4]:
-        return nontrivial
-    raise ValueError("Invalid tensor shape: " + str(v.shape))
+def str_to_image_shape(s):
+    try:
+        dims = [int(x) for x in s.split(",")]
+        if len(dims) == 2:
+            dims += [1]
+        if len(dims) != 3 or not dims[2] in (1,3) or min(dims[0:2]) < 2:
+            raise ValueError()
+        if dims[2] == 1:
+            dims = dims[0:2]
+        return dims
+    except ValueError:
+        raise ValueError("Invalid image shape: %s" % s) from None
