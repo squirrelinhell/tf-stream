@@ -38,8 +38,8 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 2:
         sys.stderr.write("\nUsage:\n\n");
-        sys.stderr.write("\timage_show.py H,W\n")
-        sys.stderr.write("\timage_show.py H,W,3\n\n")
+        sys.stderr.write("\timage_show H,W\n")
+        sys.stderr.write("\timage_show H,W,3\n\n")
         sys.exit(1)
 
     shape = functions.str_to_image_shape(sys.argv[1])

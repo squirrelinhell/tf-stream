@@ -3,8 +3,8 @@
 INFO=$'
 Usage:
 
-\timage_convert.sh H,W [ ... ImageMagick options ... ]
-\timage_convert.sh H,W,3 [ ... ImageMagick options ... ]
+\timage_write H,W [ ... ImageMagick options ... ]
+\timage_write H,W,3 [ ... ImageMagick options ... ]
 '
 
 SIZE=
@@ -37,21 +37,14 @@ esac
 BYTES=$((${1//,/*})) || exit 1
 shift
 
-OUTPUT="${@: -1}"
-case "x$OUTPUT" in
-    x) OUTPUT="-depth 8 $FMT:-" ;;
-    x-) OUTPUT='' ;;
-    x*:-) OUTPUT='' ;;
-    *) OUTPUT="-depth 8 $FMT:-" ;;
-esac
-
 TMPDIR=$(mktemp -d) || exit 1
 trap "rm -rf $TMPDIR" EXIT
 
+SCENE=1
 while dd bs=1 count=$BYTES of="$TMPDIR/chunk" status=none ; do
     convert \
         -size "$SIZE" -depth 8 "$FMT:$TMPDIR/chunk" \
-        "$@" \
-        $OUTPUT || exit 1
+        -scene "$SCENE" "$@" </dev/null || exit 1
+    let SCENE=SCENE+1
 done || exit 1
 

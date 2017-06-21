@@ -9,7 +9,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 2:
         sys.stderr.write("\nUsage:\n\n");
-        sys.stderr.write("\tmodel_run.py <dir.model> <input tensor> <output tensor>\n\n")
+        sys.stderr.write("\tmodel_run <dir.model> <input tensor> <output tensor>\n\n")
         sys.exit(1)
 
     with functions.load_session(sys.argv[1]) as sess:

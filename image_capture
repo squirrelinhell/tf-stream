@@ -114,8 +114,8 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 2:
         sys.stderr.write("\nUsage:\n\n");
-        sys.stderr.write("\timage_capture.py H,W\n")
-        sys.stderr.write("\timage_capture.py H,W,3\n\n")
+        sys.stderr.write("\timage_capture H,W\n")
+        sys.stderr.write("\timage_capture H,W,3\n\n")
         sys.exit(1)
 
     if sys.stdout.isatty():

@@ -3,7 +3,7 @@
 INFO=$'
 Usage:
 
-\timage_read.sh <file or directory>
+\timage_read <file or directory>
 '
 
 if [ ! -e "$1" ]; then
