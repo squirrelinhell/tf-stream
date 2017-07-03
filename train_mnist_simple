@@ -8,7 +8,7 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 import os
-import functions
+import loadsave
 import numpy as np
 import tensorflow as tf
 import tensorflow.examples.tutorials.mnist as tf_mnist
@@ -47,6 +47,14 @@ def create_model():
 
     y = tf.nn.softmax(y, 1, name="y")
 
+    global_step = tf.contrib.framework.get_or_create_global_step()
+
+    train = tf.train.GradientDescentOptimizer(0.1).minimize(
+        loss,
+        global_step = global_step,
+        name = "train"
+    )
+
 def get_stats(dataset):
     sess = tf.get_default_session()
     x = sess.graph.get_tensor_by_name("x:0")
@@ -66,31 +74,20 @@ def train_model(next_batch):
     x = sess.graph.get_tensor_by_name("x:0")
     t = sess.graph.get_tensor_by_name("t:0")
     loss = sess.graph.get_tensor_by_name("loss:0")
+    train = sess.graph.get_operation_by_name("train")
 
-    train_step = tf.train.GradientDescentOptimizer(0.1).minimize(loss)
     for _ in range(300):
         x_v, t_v = next_batch()
         x_v = np.reshape(x_v, [-1, 28, 28])
-        sess.run(train_step, feed_dict={x: x_v, t: t_v})
-
-def load_session():
-    if os.path.exists(sys.argv[1]):
-        print("Loading model from:", sys.argv[1])
-        return functions.load_session(sys.argv[1])
-    else:
-        print("Creating a new model...")
-        create_model()
-        session = tf.Session()
-        session.run(tf.global_variables_initializer())
-        return session
+        sess.run(train, feed_dict={x: x_v, t: t_v})
 
 if __name__ == "__main__":
     mnist = tf_mnist.input_data.read_data_sets(
-        "/tmp/mnist",
+        "__mnist__",
         one_hot = True
     )
 
-    with load_session() as s:
+    with loadsave.load(sys.argv[1], create_model = create_model) as s:
         print("Training model...")
         for e in range(10):
             train_model(lambda: mnist.train.next_batch(200))
@@ -98,6 +95,4 @@ if __name__ == "__main__":
                 "Stats:   [train] ", get_stats(mnist.train),
                 "   [test] ", get_stats(mnist.test)
             )
-
-        print("Saving model to:", sys.argv[1])
-        functions.save_session(s, sys.argv[1])
+        loadsave.save(s, sys.argv[1])

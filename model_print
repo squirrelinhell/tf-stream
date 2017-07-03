@@ -7,7 +7,7 @@ if len(sys.argv) < 2:
     sys.stderr.write("\tmodel_print <dir.model>\n\n")
     sys.exit(1)
 
-import functions
+import loadsave
 
 def args_str(args):
     return "[" + ", ".join(
@@ -15,7 +15,7 @@ def args_str(args):
     ) + "]"
 
 if __name__ == "__main__":
-    with functions.load_session(sys.argv[1]) as sess:
+    with loadsave.load(sys.argv[1]) as sess:
         for op in sess.graph.get_operations():
             print(
                 op.name,

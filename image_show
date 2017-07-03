@@ -12,7 +12,7 @@ import threading
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-import functions
+import utils
 
 class ImageView():
     def __init__(self, shape):
@@ -57,6 +57,6 @@ class ImageView():
         return img.reshape(self.shape)
 
 if __name__ == "__main__":
-    shape = functions.str_to_image_shape(sys.argv[1])
+    shape = utils.str_to_image_shape(sys.argv[1])
     app = ImageView(shape)
     app.run()

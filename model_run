@@ -9,10 +9,10 @@ if len(sys.argv) < 2:
 
 import time
 import numpy as np
-import functions
+import loadsave
 
 if __name__ == "__main__":
-    with functions.load_session(sys.argv[1]) as sess:
+    with loadsave.load(sys.argv[1]) as sess:
         x = sess.graph.get_tensor_by_name(sys.argv[2])
         y = sess.graph.get_tensor_by_name(sys.argv[3])
 
