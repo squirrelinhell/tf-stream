@@ -16,7 +16,7 @@ if __name__ == "__main__":
         x = sess.graph.get_tensor_by_name(sys.argv[2])
         y = sess.graph.get_tensor_by_name(sys.argv[3])
 
-        x_shape = [1 if v == None else v for v in x.shape.as_list()]
+        x_shape = [1 if v is None else v for v in x.shape.as_list()]
         x_size = np.prod(x_shape)
 
         while True:

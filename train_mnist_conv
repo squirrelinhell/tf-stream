@@ -4,7 +4,7 @@ import sys
 
 if len(sys.argv) < 2:
     sys.stderr.write("\nUsage:\n\n");
-    sys.stderr.write("\ttrain_mnist_simple <output.model>\n\n")
+    sys.stderr.write("\ttrain_mnist_conv <output.model>\n\n")
     sys.exit(1)
 
 import os
@@ -13,22 +13,52 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.examples.tutorials.mnist as tf_mnist
 
-def dense(x, o):
-    i = x.shape[1].value
-    sd = 2. / (i + o)
-    b = tf.Variable(tf.constant(0.1, shape=[o]))
-    w = tf.Variable(tf.random_normal([i, o], stddev=sd))
+def dense(x, out_dim):
+    in_dim = np.prod([1 if v is None else v for v in x.shape.as_list()])
+    x = tf.reshape(x, [-1, in_dim])
+    b = tf.Variable(tf.constant(0.1, shape = [out_dim]))
+    w = tf.Variable(tf.truncated_normal(
+        [in_dim, out_dim],
+        stddev = 0.1
+    ))
     return tf.matmul(x, w) + b
+
+def conv(x, ksize, filters):
+    in_channels = x.shape[-1].value
+    b = tf.Variable(tf.constant(0.1, shape = [filters]))
+    w = tf.Variable(tf.truncated_normal(
+        [ksize, ksize, in_channels, filters],
+        stddev = 0.1
+    ))
+    return tf.nn.conv2d(
+        x, w,
+        strides = [1, 1, 1, 1],
+        padding = 'SAME'
+    ) + b
+
+def maxpool(x, size):
+    return tf.nn.max_pool(
+        x,
+        ksize = [1, size, size, 1],
+        strides = [1, size, size, 1],
+        padding = 'SAME'
+    )
 
 def create_model():
     x = tf.placeholder(tf.float32, [None, 28, 28], name="x")
 
-    y = tf.reshape(x, [-1, 28*28])
-    y = dense(y, 100)
+    y = tf.reshape(x, [-1, 28, 28, 1])
+
+    y = conv(y, 5, 32)
     y = tf.nn.relu(y)
-    y = dense(y, 100)
+    y = maxpool(y, 2)
+
+    y = conv(y, 5, 64)
     y = tf.nn.relu(y)
+    y = maxpool(y, 2)
+
     y = dense(y, 10)
+    y = tf.nn.relu(y)
 
     t = tf.placeholder(tf.float32, [None, 10], name="t")
 
@@ -49,20 +79,11 @@ def create_model():
 
     global_step = tf.contrib.framework.get_or_create_global_step()
 
-    tf.train.GradientDescentOptimizer(0.1).minimize(
+    tf.train.AdamOptimizer(1e-4).minimize(
         loss,
         global_step = global_step,
         name = "train"
     )
-
-def get_stats(s, dataset):
-    x_v, t_v = dataset.images, dataset.labels
-    x_v = np.reshape(x_v, [-1, 28, 28])
-    v = s.run(
-        [s.accuracy, s.loss],
-        feed_dict = {s.x: x_v, s.t: t_v}
-    )
-    return "accuracy=%f, loss=%f" % (v[0], v[1])
 
 def train_batch(s, batch):
     x_v, t_v = batch
@@ -72,16 +93,25 @@ def train_batch(s, batch):
         feed_dict = {s.x: x_v, s.t: t_v}
     )
 
+def stat_batch(s, batch):
+    x_v, t_v = batch
+    x_v = np.reshape(x_v, [-1, 28, 28])
+    v = s.run(
+        [s.accuracy, s.loss],
+        feed_dict = {s.x: x_v, s.t: t_v}
+    )
+    return "accuracy=%f, loss=%f" % (v[0], v[1])
+
 def train_epoch(s):
     for _ in range(10):
         sys.stderr.write("Training model...   ")
         sys.stderr.flush()
-        for _ in range(300):
-            train_batch(s, mnist.train.next_batch(200))
+        for _ in range(100):
+            train_batch(s, mnist.train.next_batch(50))
         sys.stderr.write("step %d:" % s.global_step.eval())
         sys.stderr.flush()
-        sys.stderr.write("  [train] %s" % get_stats(s, mnist.train))
-        sys.stderr.write("  [test] %s\n" % get_stats(s, mnist.test))
+        sys.stderr.write("  [train] %s" % stat_batch(s, mnist.train.next_batch(1000)))
+        sys.stderr.write("  [test] %s\n" % stat_batch(s, mnist.test.next_batch(1000)))
     loadsave.save(s, sys.argv[1])
 
 if __name__ == "__main__":
@@ -91,5 +121,5 @@ if __name__ == "__main__":
     )
 
     with loadsave.load(sys.argv[1], create_model = create_model) as s:
-        for _ in range(3):
+        for _ in range(30):
             train_epoch(s)
