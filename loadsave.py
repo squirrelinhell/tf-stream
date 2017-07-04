@@ -4,13 +4,15 @@ import os
 import sys
 import tensorflow as tf
 
+from utils import *
+
 def load(path, create_model = None):
     if os.path.exists(path):
         sys.stderr.write("Loading from '" + path + "'...\n")
         saver = tf.train.import_meta_graph(
             os.path.join(path, "graph.meta")
         )
-        return tf.train.SessionManager().prepare_session(
+        sess = tf.train.SessionManager().prepare_session(
             "",
             init_op=tf.global_variables_initializer(),
             saver=saver,
@@ -20,10 +22,18 @@ def load(path, create_model = None):
         if create_model is None:
             raise ValueError("Could not open '%s'" % path)
         sys.stderr.write("Creating a new model...\n")
-        session = tf.Session()
         create_model()
-        session.run(tf.global_variables_initializer())
-        return session
+        sess = tf.Session()
+        sess.run(tf.global_variables_initializer())
+
+    sess.names = dotmap()
+    for op in sess.graph.get_operations():
+        sess.names[op.name] = op
+        for t in op.outputs:
+            sess.names[t.name.split(":")[0]] = t
+    tf.Session.__getattr__ = sess.names.get
+
+    return sess
 
 def get_checkpoint_step(path):
     prev_state = tf.train.get_checkpoint_state(path)

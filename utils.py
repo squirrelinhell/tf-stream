@@ -1,5 +1,11 @@
 #!/usr/bin/python3
 
+class dotmap(dict):
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+
 def str_to_image_shape(s):
     try:
         dims = [int(x) for x in s.split(",")]

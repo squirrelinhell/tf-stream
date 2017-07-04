@@ -37,7 +37,7 @@ def create_model():
         name="loss"
     )
 
-    accuracy = tf.reduce_mean(
+    tf.reduce_mean(
         tf.cast(
             tf.equal(tf.argmax(y, 1), tf.argmax(t, 1)),
             tf.float32
@@ -45,41 +45,32 @@ def create_model():
         name="accuracy"
     )
 
-    y = tf.nn.softmax(y, 1, name="y")
+    tf.nn.softmax(y, 1, name="y")
 
     global_step = tf.contrib.framework.get_or_create_global_step()
 
-    train = tf.train.GradientDescentOptimizer(0.1).minimize(
+    tf.train.GradientDescentOptimizer(0.1).minimize(
         loss,
         global_step = global_step,
         name = "train"
     )
 
-def get_stats(dataset):
-    sess = tf.get_default_session()
-    x = sess.graph.get_tensor_by_name("x:0")
-    t = sess.graph.get_tensor_by_name("t:0")
-    loss = sess.graph.get_tensor_by_name("loss:0")
-    accuracy = sess.graph.get_tensor_by_name("accuracy:0")
-
-    x_v = np.reshape(dataset.images, [-1, 28, 28])
-    v = sess.run(
-        [accuracy, loss],
-        feed_dict={x: x_v, t: dataset.labels}
+def get_stats(s, dataset):
+    x_v, t_v = dataset.images, dataset.labels
+    x_v = np.reshape(x_v, [-1, 28, 28])
+    v = s.run(
+        [s.accuracy, s.loss],
+        feed_dict = {s.x: x_v, s.t: t_v}
     )
     return "accuracy=%f, loss=%f" % (v[0], v[1])
 
-def train_model(next_batch):
-    sess = tf.get_default_session()
-    x = sess.graph.get_tensor_by_name("x:0")
-    t = sess.graph.get_tensor_by_name("t:0")
-    loss = sess.graph.get_tensor_by_name("loss:0")
-    train = sess.graph.get_operation_by_name("train")
-
-    for _ in range(300):
-        x_v, t_v = next_batch()
-        x_v = np.reshape(x_v, [-1, 28, 28])
-        sess.run(train, feed_dict={x: x_v, t: t_v})
+def train_batch(s, batch):
+    x_v, t_v = batch
+    x_v = np.reshape(x_v, [-1, 28, 28])
+    s.run(
+        s.train,
+        feed_dict = {s.x: x_v, s.t: t_v}
+    )
 
 if __name__ == "__main__":
     mnist = tf_mnist.input_data.read_data_sets(
@@ -90,9 +81,10 @@ if __name__ == "__main__":
     with loadsave.load(sys.argv[1], create_model = create_model) as s:
         print("Training model...")
         for e in range(10):
-            train_model(lambda: mnist.train.next_batch(200))
+            for _ in range(300):
+                train_batch(s, mnist.train.next_batch(200))
             print(
-                "Stats:   [train] ", get_stats(mnist.train),
-                "   [test] ", get_stats(mnist.test)
+                "Stats:   [train] ", get_stats(s, mnist.train),
+                "   [test] ", get_stats(s, mnist.test)
             )
         loadsave.save(s, sys.argv[1])
