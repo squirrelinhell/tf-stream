@@ -62,7 +62,7 @@ def get_stats(s, dataset):
         [s.accuracy, s.loss],
         feed_dict = {s.x: x_v, s.t: t_v}
     )
-    return "accuracy=%f, loss=%f" % (v[0], v[1])
+    return "%6.2f%%, loss=%f" % (v[0] * 100.0, v[1])
 
 def train_batch(s, batch):
     x_v, t_v = batch
@@ -72,24 +72,26 @@ def train_batch(s, batch):
         feed_dict = {s.x: x_v, s.t: t_v}
     )
 
-def train_epoch(s):
+def train_epoch(s, mnist):
+    sys.stderr.write("Training model...\n")
+    sys.stderr.flush()
     for _ in range(10):
-        sys.stderr.write("Training model...   ")
-        sys.stderr.flush()
-        for _ in range(300):
+        for _ in range(1000):
             train_batch(s, mnist.train.next_batch(200))
-        sys.stderr.write("step %d:" % s.global_step.eval())
+        sys.stderr.write("%10d: " % s.global_step.eval())
         sys.stderr.flush()
         sys.stderr.write("  [train] %s" % get_stats(s, mnist.train))
         sys.stderr.write("  [test] %s\n" % get_stats(s, mnist.test))
+        sys.stderr.flush()
     loadsave.save(s, sys.argv[1])
 
-if __name__ == "__main__":
+def run():
     mnist = tf_mnist.input_data.read_data_sets(
         "__mnist__",
         one_hot = True
     )
-
     with loadsave.load(sys.argv[1], create_model = create_model) as s:
-        for _ in range(3):
-            train_epoch(s)
+        train_epoch(s, mnist)
+
+if __name__ == "__main__":
+    run()

@@ -13,6 +13,8 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.examples.tutorials.mnist as tf_mnist
 
+from utils import *
+
 def dense(x, out_dim):
     in_dim = np.prod([1 if v is None else v for v in x.shape.as_list()])
     x = tf.reshape(x, [-1, in_dim])
@@ -45,7 +47,7 @@ def maxpool(x, size):
     )
 
 def create_model():
-    x = tf.placeholder(tf.float32, [None, 28, 28], name="x")
+    x = tf.placeholder(tf.float32, [None, 28, 28], name = "x")
 
     y = tf.reshape(x, [-1, 28, 28, 1])
 
@@ -57,32 +59,69 @@ def create_model():
     y = tf.nn.relu(y)
     y = maxpool(y, 2)
 
-    y = dense(y, 10)
+    y = dense(y, 1024)
     y = tf.nn.relu(y)
 
-    t = tf.placeholder(tf.float32, [None, 10], name="t")
+    y = dense(y, 10)
+
+    t = tf.placeholder(tf.float32, [None, 10], name = "t")
+
+    correct = tf.equal(tf.argmax(y, 1), tf.argmax(t, 1))
+    correct = tf.cast(correct, tf.float32)
+
+    tf.cast(tf.reduce_sum(1.0 - correct), tf.int64, name = "mistakes")
+    tf.reduce_mean(correct, name = "accuracy")
+
+    tf.nn.softmax(y, 1, name = "y")
 
     loss = tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits(labels=t, logits=y),
-        name="loss"
+        name = "loss"
     )
-
-    tf.reduce_mean(
-        tf.cast(
-            tf.equal(tf.argmax(y, 1), tf.argmax(t, 1)),
-            tf.float32
-        ),
-        name="accuracy"
-    )
-
-    tf.nn.softmax(y, 1, name="y")
 
     global_step = tf.contrib.framework.get_or_create_global_step()
 
-    tf.train.AdamOptimizer(1e-4).minimize(
+    tf.train.AdamOptimizer(0.0001).minimize(
         loss,
         global_step = global_step,
         name = "train"
+    )
+
+def compute_stats(s, batch):
+    x_v, t_v = batch
+    x_v = np.reshape(x_v, [-1, 28, 28])
+    num_samples = len(x_v)
+    if num_samples <= 1024:
+        v = s.run(
+            [s.accuracy, s.loss, s.mistakes],
+            feed_dict = {s.x: x_v, s.t: t_v}
+        )
+        return {
+            "accuracy": v[0],
+            "loss": v[1],
+            "mistakes": v[2],
+            "samples": num_samples
+        }
+
+    # Split computation into batches of 1024
+    ret = {}
+    while len(x_v) > 0:
+        part = x_v[0:1024], t_v[0:1024]
+        x_v, t_v = x_v[1024:], t_v[1024:]
+        part_stat = compute_stats(s, part)
+        part_stat["accuracy"] *= len(part[0])
+        part_stat["loss"] *= len(part[0])
+        ret = dict_sum(ret, part_stat)
+    ret["accuracy"] /= num_samples
+    ret["loss"] /= num_samples
+    return ret
+
+def format_stats(v):
+    return "%6.2f%% (%d/%d), loss=%f" % (
+        v["accuracy"] * 100.0,
+        v["samples"] - v["mistakes"],
+        v["samples"],
+        v["loss"]
     )
 
 def train_batch(s, batch):
@@ -93,33 +132,36 @@ def train_batch(s, batch):
         feed_dict = {s.x: x_v, s.t: t_v}
     )
 
-def stat_batch(s, batch):
-    x_v, t_v = batch
-    x_v = np.reshape(x_v, [-1, 28, 28])
-    v = s.run(
-        [s.accuracy, s.loss],
-        feed_dict = {s.x: x_v, s.t: t_v}
-    )
-    return "accuracy=%f, loss=%f" % (v[0], v[1])
+def print_stats(s, mnist):
+    sys.stderr.write("%10d: " % s.global_step.eval())
+    sys.stderr.flush()
+    v = compute_stats(s, (mnist.train.images, mnist.train.labels))
+    sys.stderr.write("  [train] " + format_stats(v))
+    sys.stderr.flush()
+    v = compute_stats(s, (mnist.test.images, mnist.test.labels))
+    sys.stderr.write("  [test] " + format_stats(v) + "\n")
+    sys.stderr.flush()
+    return v
 
-def train_epoch(s):
-    for _ in range(10):
-        sys.stderr.write("Training model...   ")
-        sys.stderr.flush()
-        for _ in range(100):
+def train(s, mnist):
+    top_accuracy = print_stats(s, mnist)["accuracy"]
+    while True:
+        for _ in range(1000):
             train_batch(s, mnist.train.next_batch(50))
-        sys.stderr.write("step %d:" % s.global_step.eval())
-        sys.stderr.flush()
-        sys.stderr.write("  [train] %s" % stat_batch(s, mnist.train.next_batch(1000)))
-        sys.stderr.write("  [test] %s\n" % stat_batch(s, mnist.test.next_batch(1000)))
-    loadsave.save(s, sys.argv[1])
+        accuracy = print_stats(s, mnist)["accuracy"]
+        if (1.0 - accuracy) < 0.99 * (1.0 - top_accuracy):
+            top_accuracy = accuracy
+            loadsave.save(s, sys.argv[1])
 
-if __name__ == "__main__":
+def run():
     mnist = tf_mnist.input_data.read_data_sets(
         "__mnist__",
         one_hot = True
     )
-
     with loadsave.load(sys.argv[1], create_model = create_model) as s:
-        for _ in range(30):
-            train_epoch(s)
+        sys.stderr.write("Training model...\n")
+        sys.stderr.flush()
+        train(s, mnist)
+
+if __name__ == "__main__":
+    run()

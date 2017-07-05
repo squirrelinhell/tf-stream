@@ -18,3 +18,6 @@ def str_to_image_shape(s):
         return dims
     except ValueError:
         raise ValueError("Invalid image shape: %s" % s) from None
+
+def dict_sum(a, b):
+    return { k: a.get(k, 0) + b.get(k, 0) for k in set(a) | set(b) }

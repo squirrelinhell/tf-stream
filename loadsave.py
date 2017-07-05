@@ -6,9 +6,14 @@ import tensorflow as tf
 
 from utils import *
 
+def _print_info(m):
+    sys.stderr.write(m)
+    sys.stderr.write("\n")
+    sys.stderr.flush()
+
 def load(path, create_model = None):
     if os.path.exists(path):
-        sys.stderr.write("Loading from '" + path + "'...\n")
+        _print_info("Loading from '" + path + "'...")
         saver = tf.train.import_meta_graph(
             os.path.join(path, "graph.meta")
         )
@@ -21,7 +26,7 @@ def load(path, create_model = None):
     else:
         if create_model is None:
             raise ValueError("Could not open '%s'" % path)
-        sys.stderr.write("Creating a new model...\n")
+        _print_info("Creating a new model...")
         create_model()
         sess = tf.Session()
         sess.run(tf.global_variables_initializer())
@@ -54,7 +59,7 @@ def save(sess, path):
         step_value = tf.train.global_step(sess, global_step)
 
     if os.path.exists(path):
-        sys.stderr.write("Adding checkpoint to '" + path + "'...\n")
+        _print_info("Adding checkpoint to '" + path + "'...")
         prev_value = get_checkpoint_step(path)
         if step_value <= prev_value:
             if global_step is None:
@@ -70,7 +75,7 @@ def save(sess, path):
             global_step = step_value
         )
     else:
-        sys.stderr.write("Saving to '" + path + "'...\n")
+        _print_info("Saving to '" + path + "'...")
         os.makedirs(path)
         saver.export_meta_graph(
             filename = os.path.join(path, "graph.meta")
