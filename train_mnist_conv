@@ -16,57 +16,82 @@ import tensorflow.examples.tutorials.mnist as tf_mnist
 from utils import *
 
 def dense(x, out_dim):
-    in_dim = np.prod([1 if v is None else v for v in x.shape.as_list()])
-    x = tf.reshape(x, [-1, in_dim])
-    b = tf.Variable(tf.constant(0.1, shape = [out_dim]))
-    w = tf.Variable(tf.truncated_normal(
-        [in_dim, out_dim],
-        stddev = 0.1
-    ))
-    return tf.matmul(x, w) + b
+    with tf.name_scope("dense"):
+        in_dim = np.prod([
+            1 if v is None else v
+            for v in x.shape.as_list()
+        ])
+        x = tf.reshape(x, [-1, in_dim])
+        b = tf.Variable(tf.constant(0.1, shape = [out_dim]))
+        w = tf.Variable(tf.truncated_normal(
+            [in_dim, out_dim],
+            stddev = 0.1
+        ))
+        return tf.matmul(x, w) + b
 
-def conv(x, ksize, filters):
-    in_channels = x.shape[-1].value
-    b = tf.Variable(tf.constant(0.1, shape = [filters]))
-    w = tf.Variable(tf.truncated_normal(
-        [ksize, ksize, in_channels, filters],
-        stddev = 0.1
-    ))
-    return tf.nn.conv2d(
-        x, w,
-        strides = [1, 1, 1, 1],
-        padding = 'SAME'
-    ) + b
+def conv(x, ksize, filters, stride = 1):
+    with tf.name_scope("conv"):
+        in_channels = x.shape[-1].value
+        b = tf.Variable(tf.constant(0.1, shape = [filters]))
+        w = tf.Variable(tf.truncated_normal(
+            [ksize, ksize, in_channels, filters],
+            stddev = 0.1
+        ))
+        return tf.nn.conv2d(
+            x, w,
+            strides = [1, stride, stride, 1],
+            padding = 'SAME'
+        ) + b
 
 def maxpool(x, size):
-    return tf.nn.max_pool(
-        x,
-        ksize = [1, size, size, 1],
-        strides = [1, size, size, 1],
-        padding = 'SAME'
+    with tf.name_scope("maxpool"):
+        return tf.nn.max_pool(
+            x,
+            ksize = [1, size, size, 1],
+            strides = [1, size, size, 1],
+            padding = 'SAME'
+        )
+
+def trainable_parameters():
+    return sum([
+        np.prod(v.shape.as_list())
+        for v in tf.trainable_variables()
+    ])
+
+def create_layers(inp, layers):
+    params = trainable_parameters()
+    print_info(
+        "%30s Input: %d params"
+        % (y.shape, params)
     )
+    for i in range(len(layers)):
+        with tf.name_scope("layer_%d" % (i+1)):
+            y = layers[i](y)
+        new_params = trainable_parameters() - params
+        print_info(
+            "%30s Layer %d: %d params"
+            % (y.shape, i+1, new_params)
+        )
+        params += new_params
 
 def create_model():
     x = tf.placeholder(tf.float32, [None, 28, 28], name = "x")
     t = tf.placeholder(tf.float32, [None, 10], name = "t")
     dropout = tf.placeholder_with_default(0.0, [], name = "dropout")
 
-    y = tf.reshape(x, [-1, 28, 28, 1])
+    layers = [
+        lambda l: tf.nn.relu(conv(l, 3, 32)),
+        lambda l: maxpool(l, 2),
+        lambda l: tf.nn.dropout(l, 1.0 - dropout),
+        lambda l: tf.nn.relu(conv(l, 3, 64)),
+        lambda l: maxpool(l, 2),
+        lambda l: tf.nn.dropout(l, 1.0 - dropout),
+        lambda l: tf.nn.relu(dense(l, 1024)),
+        lambda l: tf.nn.dropout(l, 1.0 - dropout),
+        lambda l: dense(l, 10)
+    ]
 
-    y = conv(y, 5, 32)
-    y = tf.nn.relu(y)
-    y = maxpool(y, 2)
-
-    y = conv(y, 5, 64)
-    y = tf.nn.relu(y)
-    y = maxpool(y, 2)
-
-    y = dense(y, 1024)
-    y = tf.nn.relu(y)
-
-    y = tf.nn.dropout(y, 1.0 - dropout)
-
-    y = dense(y, 10)
+    y = create_layers(tf.reshape(x, [-1, 28, 28, 1]), layers)
 
     correct = tf.equal(tf.argmax(y, 1), tf.argmax(t, 1))
     correct = tf.cast(correct, tf.float32)
@@ -146,13 +171,13 @@ def train_batch(s, batch):
     )
 
 def train(s, mnist):
-    top_accuracy = max(0.99, print_stats(s, mnist)["accuracy"])
+    top_accuracy = 0.0
     batch_size = 100
     while True:
         for _ in range(100000 // batch_size):
             train_batch(s, mnist.train.next_batch(batch_size))
         accuracy = print_stats(s, mnist)["accuracy"]
-        if (1.0 - accuracy) < 0.99 * (1.0 - top_accuracy):
+        if accuracy > 0.99 and accuracy > 0.1 + 0.9 * top_accuracy:
             top_accuracy = accuracy
             loadsave.save(s, sys.argv[1])
 
@@ -162,8 +187,7 @@ def run():
         one_hot = True
     )
     with loadsave.load(sys.argv[1], create_model = create_model) as s:
-        sys.stderr.write("Training model...\n")
-        sys.stderr.flush()
+        print_info("Training model...")
         train(s, mnist)
 
 if __name__ == "__main__":

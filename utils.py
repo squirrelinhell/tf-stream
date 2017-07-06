@@ -1,10 +1,16 @@
 #!/usr/bin/python3
 
+import sys
+
+def print_info(*args):
+    sys.stderr.write(" ".join([str(x) for x in args]))
+    sys.stderr.write("\n")
+    sys.stderr.flush()
+
 class dotmap(dict):
     __getattr__ = dict.get
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
-
 
 def str_to_image_shape(s):
     try:
