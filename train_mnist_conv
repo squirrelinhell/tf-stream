@@ -48,6 +48,8 @@ def maxpool(x, size):
 
 def create_model():
     x = tf.placeholder(tf.float32, [None, 28, 28], name = "x")
+    t = tf.placeholder(tf.float32, [None, 10], name = "t")
+    dropout = tf.placeholder_with_default(0.0, [], name = "dropout")
 
     y = tf.reshape(x, [-1, 28, 28, 1])
 
@@ -62,9 +64,9 @@ def create_model():
     y = dense(y, 1024)
     y = tf.nn.relu(y)
 
-    y = dense(y, 10)
+    y = tf.nn.dropout(y, 1.0 - dropout)
 
-    t = tf.placeholder(tf.float32, [None, 10], name = "t")
+    y = dense(y, 10)
 
     correct = tf.equal(tf.argmax(y, 1), tf.argmax(t, 1))
     correct = tf.cast(correct, tf.float32)
@@ -124,30 +126,31 @@ def format_stats(v):
         v["loss"]
     )
 
+def print_stats(s, mnist):
+    sys.stderr.write("%10d: " % s.global_step.eval())
+    sys.stderr.flush()
+    v = compute_stats(s, (mnist.train.images, mnist.train.labels))
+    sys.stderr.write(" [train] %s " % format_stats(v))
+    sys.stderr.flush()
+    v = compute_stats(s, (mnist.test.images, mnist.test.labels))
+    sys.stderr.write(" [test]%s\n" % format_stats(v))
+    sys.stderr.flush()
+    return v
+
 def train_batch(s, batch):
     x_v, t_v = batch
     x_v = np.reshape(x_v, [-1, 28, 28])
     s.run(
         s.train,
-        feed_dict = {s.x: x_v, s.t: t_v}
+        feed_dict = {s.x: x_v, s.t: t_v, s.dropout: 0.5}
     )
 
-def print_stats(s, mnist):
-    sys.stderr.write("%10d: " % s.global_step.eval())
-    sys.stderr.flush()
-    v = compute_stats(s, (mnist.train.images, mnist.train.labels))
-    sys.stderr.write("  [train] " + format_stats(v))
-    sys.stderr.flush()
-    v = compute_stats(s, (mnist.test.images, mnist.test.labels))
-    sys.stderr.write("  [test] " + format_stats(v) + "\n")
-    sys.stderr.flush()
-    return v
-
 def train(s, mnist):
-    top_accuracy = print_stats(s, mnist)["accuracy"]
+    top_accuracy = max(0.99, print_stats(s, mnist)["accuracy"])
+    batch_size = 100
     while True:
-        for _ in range(1000):
-            train_batch(s, mnist.train.next_batch(50))
+        for _ in range(100000 // batch_size):
+            train_batch(s, mnist.train.next_batch(batch_size))
         accuracy = print_stats(s, mnist)["accuracy"]
         if (1.0 - accuracy) < 0.99 * (1.0 - top_accuracy):
             top_accuracy = accuracy
