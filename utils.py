@@ -1,11 +1,22 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
+import os
 import sys
+import hashlib
 
 def print_info(*args):
-    sys.stderr.write(" ".join([str(x) for x in args]))
-    sys.stderr.write("\n")
+    data = " ".join([str(x) for x in args]) + "\n"
+    sys.stderr.write(data)
     sys.stderr.flush()
+
+def save_result(header, *args):
+    data = " ".join([str(x) for x in args]) + "\n"
+    header_hash = hashlib.md5(bytes(header, "UTF-8")).hexdigest()
+    file_name = "results-%s.log" % header_hash[0:12]
+    if not os.path.isfile(file_name):
+        data = header + "\n---\n" + data
+    with open(file_name, "a") as f:
+        f.write(data)
 
 class dotmap(dict):
     __getattr__ = dict.get

@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import sys
 
@@ -29,7 +29,7 @@ def dense(x, out_dim):
         ))
         return tf.matmul(x, w) + b
 
-def conv(x, ksize, filters, stride = 1):
+def conv(x, ksize, filters, stride = 1, padding = "SAME"):
     with tf.name_scope("conv"):
         in_channels = x.shape[-1].value
         b = tf.Variable(tf.constant(0.1, shape = [filters]))
@@ -40,16 +40,16 @@ def conv(x, ksize, filters, stride = 1):
         return tf.nn.conv2d(
             x, w,
             strides = [1, stride, stride, 1],
-            padding = 'SAME'
+            padding = padding
         ) + b
 
-def maxpool(x, size):
+def maxpool(x, size, padding = "SAME"):
     with tf.name_scope("maxpool"):
         return tf.nn.max_pool(
             x,
             ksize = [1, size, size, 1],
             strides = [1, size, size, 1],
-            padding = 'SAME'
+            padding = padding
         )
 
 def trainable_parameters():
@@ -62,8 +62,9 @@ def create_layers(inp, layers):
     params = trainable_parameters()
     print_info(
         "%30s Input: %d params"
-        % (y.shape, params)
+        % (inp.shape, params)
     )
+    y = inp
     for i in range(len(layers)):
         with tf.name_scope("layer_%d" % (i+1)):
             y = layers[i](y)
@@ -73,6 +74,7 @@ def create_layers(inp, layers):
             % (y.shape, i+1, new_params)
         )
         params += new_params
+    return y
 
 def create_model():
     x = tf.placeholder(tf.float32, [None, 28, 28], name = "x")
@@ -81,11 +83,17 @@ def create_model():
 
     layers = [
         lambda l: tf.nn.relu(conv(l, 3, 32)),
-        lambda l: maxpool(l, 2),
+        lambda l: tf.nn.relu(conv(l, 3, 32)),
         lambda l: tf.nn.dropout(l, 1.0 - dropout),
+        lambda l: maxpool(l, 2),
         lambda l: tf.nn.relu(conv(l, 3, 64)),
-        lambda l: maxpool(l, 2),
+        lambda l: tf.nn.relu(conv(l, 3, 64)),
         lambda l: tf.nn.dropout(l, 1.0 - dropout),
+        lambda l: maxpool(l, 2),
+        lambda l: tf.nn.relu(conv(l, 3, 64)),
+        lambda l: tf.nn.relu(conv(l, 3, 64)),
+        lambda l: tf.nn.dropout(l, 1.0 - dropout),
+        lambda l: maxpool(l, 2),
         lambda l: tf.nn.relu(dense(l, 1024)),
         lambda l: tf.nn.dropout(l, 1.0 - dropout),
         lambda l: dense(l, 10)
@@ -151,8 +159,8 @@ def format_stats(v):
         v["loss"]
     )
 
-def print_stats(s, mnist):
-    sys.stderr.write("%10d: " % s.global_step.eval())
+def print_stats(s, mnist, batch_size):
+    sys.stderr.write("%10dx%d: " % (s.global_step.eval(), batch_size))
     sys.stderr.flush()
     v = compute_stats(s, (mnist.train.images, mnist.train.labels))
     sys.stderr.write(" [train] %s " % format_stats(v))
@@ -170,25 +178,33 @@ def train_batch(s, batch):
         feed_dict = {s.x: x_v, s.t: t_v, s.dropout: 0.5}
     )
 
-def train(s, mnist):
-    top_accuracy = 0.0
+def train(s, mnist, program):
+    next_target = 0.99
     batch_size = 100
     while True:
-        for _ in range(100000 // batch_size):
+        for _ in range(1000):
             train_batch(s, mnist.train.next_batch(batch_size))
-        accuracy = print_stats(s, mnist)["accuracy"]
-        if accuracy > 0.99 and accuracy > 0.1 + 0.9 * top_accuracy:
-            top_accuracy = accuracy
+        accuracy = print_stats(s, mnist, batch_size)["accuracy"]
+        if accuracy >= next_target:
+            next_target = accuracy * 0.9 + 0.1
             loadsave.save(s, sys.argv[1])
+            save_result(program, "%dx%d: %.2f%%" %
+                (s.global_step.eval(), batch_size, 100.0 * accuracy))
+        if accuracy >= 0.99985:
+            return
 
 def run():
+    with open(sys.argv[0], "r") as f:
+        program = f.read()
+
     mnist = tf_mnist.input_data.read_data_sets(
         "__mnist__",
         one_hot = True
     )
+
     with loadsave.load(sys.argv[1], create_model = create_model) as s:
         print_info("Training model...")
-        train(s, mnist)
+        train(s, mnist, program)
 
 if __name__ == "__main__":
     run()
