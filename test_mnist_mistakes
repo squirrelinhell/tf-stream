@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+
+import sys
+import numpy as np
+import loadsave
+import tensorflow.examples.tutorials.mnist as tf_mnist
+
+def print_mistakes(s, x, y, data):
+    data = np.reshape(data.images, [-1, 28, 28]), data.labels
+    while len(data[0]) > 0:
+        x_v, t_v = data[0][0:1024], data[1][0:1024]
+        data = data[0][1024:], data[1][1024:]
+        y_v = s.run(
+            y,
+            feed_dict = {x: x_v}
+        )
+        mistakes = np.not_equal(np.argmax(y_v, 1), t_v)
+        imgs = x_v[mistakes]
+        imgs = np.clip(imgs * 256.0, 0.0, 255.1).astype("uint8")
+        sys.stdout.buffer.write(imgs.tobytes())
+        sys.stdout.buffer.flush()
+
+def run():
+    if len(sys.argv) < 4:
+        sys.stderr.write("\nUsage:\n\n");
+        sys.stderr.write("\ttest_mnist_mistakes <dir.model> <input tensor> <output tensor>\n\n")
+        sys.exit(1)
+
+    if sys.stdout.isatty():
+        sys.stderr.write("Error: Refusing to write binary data to a terminal\n")
+        sys.exit(1)
+
+    mnist = tf_mnist.input_data.read_data_sets("__mnist__")
+
+    with loadsave.load(sys.argv[1]) as sess:
+        x = sess.graph.get_tensor_by_name(sys.argv[2])
+        y = sess.graph.get_tensor_by_name(sys.argv[3])
+        print_mistakes(sess, x, y, mnist.test)
+
+if __name__ == "__main__":
+    run()

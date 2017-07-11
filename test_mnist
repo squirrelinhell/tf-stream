@@ -19,9 +19,18 @@ if [ "x$2" = x ]; then
     image_capture 200,200 | \
         image_write 200,200 -resize 28x28 GRAY:- | \
         model_run "$1" x:0 y:0 | \
-        image_show 10,1 || exit 1
-else
+        image_show 10,1
+elif [ -d "$2" ]; then
+    N=$(ls "$2" | wc -l)
+    if ! [ "$N" -ge 1 ]; then
+        echo "Error: no images found in '$2'" 1>&2
+        exit 1
+    fi
     image_read 28,28 "$2" | \
         model_run "$1" x:0 y:0 | \
         od -An -t u1 -w10
+else
+    mkdir "$2" || exit 1
+    test_mnist_mistakes "$1" x:0 y:0 | \
+        image_write 28,28 "$2/%05d.png"
 fi

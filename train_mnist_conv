@@ -1,13 +1,7 @@
 #!/usr/bin/env python3
 
-import sys
-
-if len(sys.argv) < 2:
-    sys.stderr.write("\nUsage:\n\n");
-    sys.stderr.write("\ttrain_mnist_conv <output.model>\n\n")
-    sys.exit(1)
-
 import os
+import sys
 import loadsave
 import numpy as np
 import tensorflow as tf
@@ -107,12 +101,12 @@ def create_model():
     tf.cast(tf.reduce_sum(1.0 - correct), tf.int64, name = "mistakes")
     tf.reduce_mean(correct, name = "accuracy")
 
-    tf.nn.softmax(y, 1, name = "y")
-
     loss = tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits(labels=t, logits=y),
         name = "loss"
     )
+
+    y = tf.nn.softmax(y, 1, name = "y")
 
     global_step = tf.contrib.framework.get_or_create_global_step()
 
@@ -194,6 +188,11 @@ def train(s, mnist, program):
             return
 
 def run():
+    if len(sys.argv) < 2:
+        sys.stderr.write("\nUsage:\n\n");
+        sys.stderr.write("\ttrain_mnist_conv <output.model>\n\n")
+        sys.exit(1)
+
     with open(sys.argv[0], "r") as f:
         program = f.read()
 

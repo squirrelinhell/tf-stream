@@ -1,13 +1,7 @@
 #!/usr/bin/env python3
 
-import sys
-
-if len(sys.argv) < 2:
-    sys.stderr.write("\nUsage:\n\n");
-    sys.stderr.write("\ttrain_mnist_simple <output.model>\n\n")
-    sys.exit(1)
-
 import os
+import sys
 import loadsave
 import numpy as np
 import tensorflow as tf
@@ -86,6 +80,11 @@ def train_epoch(s, mnist):
     loadsave.save(s, sys.argv[1])
 
 def run():
+    if len(sys.argv) < 2:
+        sys.stderr.write("\nUsage:\n\n");
+        sys.stderr.write("\ttrain_mnist_simple <output.model>\n\n")
+        sys.exit(1)
+
     mnist = tf_mnist.input_data.read_data_sets(
         "__mnist__",
         one_hot = True

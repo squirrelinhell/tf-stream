@@ -1,26 +1,31 @@
 #!/usr/bin/env python3
 
 import sys
-
-if len(sys.argv) < 2:
-    sys.stderr.write("\nUsage:\n\n");
-    sys.stderr.write("\tmodel_print <dir.model>\n\n")
-    sys.exit(1)
-
 import loadsave
 
-def args_str(args):
+def args2str(args):
     return "[" + ", ".join(
         [t.name + " " + str(t.shape) + " " + t.dtype.name for t in args]
     ) + "]"
 
-if __name__ == "__main__":
+def print_op(op):
+    print(
+        op.name,
+        "<" + op.type + ">",
+        args2str(op.inputs),
+        "->",
+        args2str(op.outputs)
+    )
+
+def run():
+    if len(sys.argv) < 2:
+        sys.stderr.write("\nUsage:\n\n");
+        sys.stderr.write("\tmodel_print <dir.model>\n\n")
+        sys.exit(1)
+
     with loadsave.load(sys.argv[1]) as sess:
         for op in sess.graph.get_operations():
-            print(
-                op.name,
-                "<" + op.type + ">",
-                args_str(op.inputs),
-                "->",
-                args_str(op.outputs)
-            )
+            print_op(op)
+
+if __name__ == "__main__":
+    run()
