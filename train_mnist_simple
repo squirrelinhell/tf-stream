@@ -7,6 +7,7 @@ import tensorflow as tf
 import tensorflow.examples.tutorials.mnist as tf_mnist
 
 import loadsave
+from utils import *
 
 def dense(x, o):
     i = x.shape[1].value
@@ -51,32 +52,28 @@ def create_model():
     )
 
 def get_stats(s, dataset):
-    x_v, t_v = dataset.images, dataset.labels
-    x_v = np.reshape(x_v, [-1, 28, 28])
     v = s.run(
         [s.accuracy, s.loss],
-        feed_dict = {s.x: x_v, s.t: t_v}
+        feed_dict = {s.x: dataset[0], s.t: dataset[1]}
     )
     return "%6.2f%%, loss=%f" % (v[0] * 100.0, v[1])
 
 def train_batch(s, batch):
-    x_v, t_v = batch
-    x_v = np.reshape(x_v, [-1, 28, 28])
     s.run(
         s.train,
-        feed_dict = {s.x: x_v, s.t: t_v}
+        feed_dict = {s.x: batch[0], s.t: batch[1]}
     )
 
-def train_epoch(s, mnist):
+def train_epoch(s, train, valid):
     sys.stderr.write("Training model...\n")
     sys.stderr.flush()
-    for _ in range(10):
-        for _ in range(1000):
-            train_batch(s, mnist.train.next_batch(200))
+    for _ in range(20):
+        for b in random_batches(train, 200):
+            train_batch(s, b)
         sys.stderr.write("%10d: " % s.global_step.eval())
         sys.stderr.flush()
-        sys.stderr.write("  [train] %s" % get_stats(s, mnist.train))
-        sys.stderr.write("  [test] %s\n" % get_stats(s, mnist.test))
+        sys.stderr.write("  [train] %s" % get_stats(s, train))
+        sys.stderr.write("  [valid] %s\n" % get_stats(s, valid))
         sys.stderr.flush()
     loadsave.save(s, sys.argv[1])
 
@@ -91,7 +88,12 @@ def run():
         one_hot = True
     )
     with loadsave.load(sys.argv[1], create_model = create_model) as s:
-        train_epoch(s, mnist)
+        train_epoch(s,
+            (mnist.train.images.reshape((-1, 28, 28)),
+                mnist.train.labels),
+            (mnist.validation.images.reshape((-1, 28, 28)),
+                mnist.validation.labels)
+        )
 
 if __name__ == "__main__":
     run()

@@ -5,9 +5,12 @@ import numpy as np
 import tensorflow.examples.tutorials.mnist as tf_mnist
 
 import loadsave
+from utils import *
 
 def print_mistakes(s, x, y, data):
     data = np.reshape(data.images, [-1, 28, 28]), data.labels
+    total = len(data[0])
+    total_ok = 0
     while len(data[0]) > 0:
         x_v, t_v = data[0][0:1024], data[1][0:1024]
         data = data[0][1024:], data[1][1024:]
@@ -16,10 +19,16 @@ def print_mistakes(s, x, y, data):
             feed_dict = {x: x_v}
         )
         mistakes = np.not_equal(np.argmax(y_v, 1), t_v)
+        total_ok += len(x_v) - np.sum(mistakes)
         imgs = x_v[mistakes]
         imgs = np.clip(imgs * 256.0, 0.0, 255.1).astype("uint8")
         sys.stdout.buffer.write(imgs.tobytes())
         sys.stdout.buffer.flush()
+    print_info("Accuracy: %.2f%% (%d/%d)" % (
+        100.0 * (total_ok / total),
+        total_ok,
+        total
+    ))
 
 def run():
     if len(sys.argv) < 4:

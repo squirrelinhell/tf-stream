@@ -4,6 +4,7 @@ INFO=$'
 Usage:
 
 \ttest_mnist <saved.model>
+\ttest_mnist <saved.model> capture
 \ttest_mnist <saved.model> <images dir>
 '
 
@@ -15,12 +16,16 @@ fi
 SCRIPT_DIR=$(readlink -m "$0/..") || exit 1
 export PATH="$SCRIPT_DIR:$PATH"
 
-if [ "x$2" = x ]; then
+
+if [ "x$2" = xcapture ]; then
     image_capture 200,200 | \
         image_write 200,200 -resize 28x28 GRAY:- | \
         model_run "$1" x:0 y:0 | \
-        image_show 10,1
-elif [ -d "$2" ]; then
+        image_show 10,1 || exit 1
+    exit 0
+fi
+
+if [ "x$2" != x -a -d "$2" ]; then
     N=$(ls "$2" | wc -l)
     if ! [ "$N" -ge 1 ]; then
         echo "Error: no images found in '$2'" 1>&2
@@ -28,9 +33,16 @@ elif [ -d "$2" ]; then
     fi
     image_read 28,28 "$2" | \
         model_run "$1" x:0 y:0 | \
-        od -An -t u1 -w10
-else
+        od -An -t u1 -w10 || exit 1
+    exit 0
+fi
+
+if [ "x$2" != x ]; then
     mkdir "$2" || exit 1
     test_mnist_mistakes "$1" x:0 y:0 | \
-        image_write 28,28 "$2/%05d.png"
+        image_write 28,28 "$2/%05d.png" || exit 1
+    exit 0
 fi
+
+test_mnist_mistakes "$1" x:0 y:0 >/dev/null || exit 1
+exit 0
