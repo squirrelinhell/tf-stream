@@ -16,6 +16,36 @@ fi
 SCRIPT_DIR=$(readlink -m "$0/..") || exit 1
 export PATH="$SCRIPT_DIR:$PATH"
 
+TEST_PY='
+import sys
+import numpy as np
+import tensorflow.examples.tutorials.mnist as tf_mnist
+
+import loadsave
+from utils import *
+
+mnist = tf_mnist.input_data.read_data_sets("__mnist__")
+
+with loadsave.load(sys.argv[1]) as s:
+    data = np.reshape(mnist.test.images, [-1, 28, 28]), mnist.test.labels
+    total_ok = 0
+
+    for x, t in random_batches(data, 1000):
+        y = s.run(s.y, feed_dict = {s.x: x})
+        mistakes = np.not_equal(np.argmax(y, 1), t)
+        total_ok += len(x) - np.sum(mistakes)
+        write_array(sys.stdout.buffer, x[mistakes])
+
+    print_info("Accuracy: %.2f%% (%d/%d)" % (
+        100.0 * (total_ok / len(data[0])),
+        total_ok,
+        len(data[0])
+    ))
+'
+
+function print_mistakes() {
+    echo "$TEST_PY" | python3 - "$@"
+}
 
 if [ "x$2" = xcapture ]; then
     image_capture 200,200 | \
@@ -39,10 +69,10 @@ fi
 
 if [ "x$2" != x ]; then
     mkdir "$2" || exit 1
-    test_mnist_mistakes "$1" x:0 y:0 | \
+    print_mistakes "$1" | \
         image_write 28,28 "$2/%05d.png" || exit 1
     exit 0
 fi
 
-test_mnist_mistakes "$1" x:0 y:0 >/dev/null || exit 1
+print_mistakes "$1" >/dev/null || exit 1
 exit 0

@@ -111,8 +111,7 @@ def capture_stream(ui, shape):
         ui.prev_capture = img
 
         try:
-            sys.stdout.buffer.write(img.tobytes())
-            sys.stdout.buffer.flush()
+            write_array(sys.stdout.buffer, img)
         except:
             break
 

@@ -4,32 +4,12 @@ import sys
 import numpy as np
 
 import loadsave
+from utils import *
 
-def run_stdio(sess, x, y):
-    x_shape = [1 if v is None else v for v in x.shape.as_list()]
-    x_size = np.prod(x_shape)
-
-    while True:
-        buf = sys.stdin.buffer.read(x_size)
-        if len(buf) < x_size:
-            break
-
-        x_val = np.frombuffer(buf, dtype="uint8")
-        buf = bytes()
-
-        x_val = np.reshape(x_val, x_shape)
-        x_val = x_val.astype("float32") / 256.0
-
+def process_stdin(sess, x, y):
+    for x_val in read_arrays(sys.stdin.buffer, x.shape.as_list()):
         y_val = sess.run(y, feed_dict = {x: x_val})
-
-        y_val = np.clip(y_val * 256.0, 0.0, 255.1)
-        y_val = y_val.astype("uint8")
-
-        try:
-            sys.stdout.buffer.write(y_val.tobytes())
-            sys.stdout.buffer.flush()
-        except:
-            break
+        write_array(sys.stdout.buffer, y_val)
 
 def run():
     if len(sys.argv) < 4:
@@ -44,7 +24,7 @@ def run():
     with loadsave.load(sys.argv[1]) as sess:
         x = sess.graph.get_tensor_by_name(sys.argv[2])
         y = sess.graph.get_tensor_by_name(sys.argv[3])
-        run_stdio(sess, x, y)
+        process_stdin(sess, x, y)
 
 if __name__ == "__main__":
     run()
