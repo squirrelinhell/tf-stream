@@ -3,6 +3,9 @@
 import os
 import sys
 import hashlib
+import threading
+import queue
+import numpy as np
 
 def print_info(*args):
     data = " ".join([str(x) for x in args]) + "\n"
@@ -38,3 +41,44 @@ def str_to_image_shape(s):
 
 def dict_sum(a, b):
     return { k: a.get(k, 0) + b.get(k, 0) for k in set(a) | set(b) }
+
+def crop_zeros(array, epsilon = 0.001):
+    array[np.abs(array) < epsilon] = 0.0
+    coord = np.argwhere(array)
+    coord = np.array([coord.min(axis = 0), coord.max(axis = 0)]).T
+    coord = [slice(a[0], a[1] + 1) for a in coord]
+    return array[coord]
+
+def random_pad(array, shape):
+    pad = np.maximum(0, np.asarray(shape) - np.asarray(array.shape))
+    shift = np.floor(np.random.rand(len(pad)) * pad)
+    pad = np.array([shift, pad - shift], dtype = "int32").T
+    return np.pad(array, pad, mode = "constant")
+
+def random_batches(data, batch_size = 128):
+    x, t = data
+    x, t = np.asarray(x), np.asarray(t)
+    p = np.random.shuffle(np.arange(len(x)))
+    x, t = x[p].reshape(x.shape), t[p].reshape(t.shape)
+    start = 0
+    while start + batch_size <= len(x):
+        yield((x[start:start+batch_size], t[start:start+batch_size]))
+        start += batch_size
+
+def __put_all(items, q):
+    for i in items:
+        q.put(i)
+        if i is None:
+            return
+    q.put(None)
+
+def iterate_in_thread(items):
+    q = queue.Queue()
+    thread = threading.Thread(target = __put_all, args = (items, q))
+    thread.start()
+    while True:
+        i = q.get(block = True)
+        if i is None:
+            break
+        yield(i)
+    thread.join()

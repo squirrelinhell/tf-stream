@@ -2,10 +2,11 @@
 
 import os
 import sys
-import loadsave
 import numpy as np
 import tensorflow as tf
 import tensorflow.examples.tutorials.mnist as tf_mnist
+
+import loadsave
 
 def dense(x, o):
     i = x.shape[1].value

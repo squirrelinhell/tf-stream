@@ -2,11 +2,12 @@
 
 import os
 import sys
-import loadsave
+import scipy.ndimage
 import numpy as np
 import tensorflow as tf
 import tensorflow.examples.tutorials.mnist as tf_mnist
 
+import loadsave
 from utils import *
 
 def dense(x, out_dim):
@@ -117,13 +118,12 @@ def create_model():
     )
 
 def compute_stats(s, batch):
-    x_v, t_v = batch
-    x_v = np.reshape(x_v, [-1, 28, 28])
-    num_samples = len(x_v)
+    x, t = batch
+    num_samples = len(x)
     if num_samples <= 1024:
         v = s.run(
             [s.accuracy, s.loss, s.mistakes],
-            feed_dict = {s.x: x_v, s.t: t_v}
+            feed_dict = {s.x: x, s.t: t}
         )
         return {
             "accuracy": v[0],
@@ -134,9 +134,9 @@ def compute_stats(s, batch):
 
     # Split computation into batches of 1024
     ret = {}
-    while len(x_v) > 0:
-        part = x_v[0:1024], t_v[0:1024]
-        x_v, t_v = x_v[1024:], t_v[1024:]
+    while len(x) > 0:
+        part = x[0:1024], t[0:1024]
+        x, t = x[1024:], t[1024:]
         part_stat = compute_stats(s, part)
         part_stat["accuracy"] *= len(part[0])
         part_stat["loss"] *= len(part[0])
@@ -153,32 +153,41 @@ def format_stats(v):
         v["loss"]
     )
 
-def print_stats(s, mnist, batch_size):
-    sys.stderr.write("%10dx%d: " % (s.global_step.eval(), batch_size))
+def print_stats(s, train, valid):
+    sys.stderr.write("%10d: " % s.global_step.eval())
     sys.stderr.flush()
-    v = compute_stats(s, (mnist.train.images, mnist.train.labels))
+    v = compute_stats(s, train)
     sys.stderr.write(" [train] %s " % format_stats(v))
     sys.stderr.flush()
-    v = compute_stats(s, (mnist.test.images, mnist.test.labels))
-    sys.stderr.write(" [test]%s\n" % format_stats(v))
+    v = compute_stats(s, valid)
+    sys.stderr.write(" [valid]%s\n" % format_stats(v))
     sys.stderr.flush()
     return v
 
+def augment_image(i):
+    i = i.reshape((28, 28))
+    i = scipy.ndimage.rotate(i, 40.0 * (np.random.rand() - 0.5))
+    i = crop_zeros(i, epsilon = 0.05)[0:28,0:28]
+    i = random_pad(i, 28)
+    return i
+
+def augmented_batches(data, batch_size):
+    for b in random_batches(data, batch_size):
+        yield (np.array([augment_image(i) for i in b[0]]), b[1])
+
 def train_batch(s, batch):
-    x_v, t_v = batch
-    x_v = np.reshape(x_v, [-1, 28, 28])
     s.run(
         s.train,
-        feed_dict = {s.x: x_v, s.t: t_v, s.dropout: 0.5}
+        feed_dict = {s.x: batch[0], s.t: batch[1], s.dropout: 0.5}
     )
 
-def train(s, mnist, program):
+def train(s, train, valid, program):
     next_target = 0.99
     batch_size = 100
     while True:
-        for _ in range(1000):
-            train_batch(s, mnist.train.next_batch(batch_size))
-        accuracy = print_stats(s, mnist, batch_size)["accuracy"]
+        for b in iterate_in_thread(augmented_batches(train, batch_size)):
+            train_batch(s, b)
+        accuracy = print_stats(s, train, valid)["accuracy"]
         if accuracy >= next_target:
             next_target = accuracy * 0.9 + 0.1
             loadsave.save(s, sys.argv[1])
@@ -203,7 +212,14 @@ def run():
 
     with loadsave.load(sys.argv[1], create_model = create_model) as s:
         print_info("Training model...")
-        train(s, mnist, program)
+        train(
+            s,
+            (mnist.train.images.reshape((-1, 28, 28)),
+                mnist.train.labels),
+            (mnist.validation.images.reshape((-1, 28, 28)),
+                mnist.validation.labels),
+            program
+        )
 
 if __name__ == "__main__":
     run()

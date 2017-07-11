@@ -2,8 +2,9 @@
 
 import sys
 import numpy as np
-import loadsave
 import tensorflow.examples.tutorials.mnist as tf_mnist
+
+import loadsave
 
 def print_mistakes(s, x, y, data):
     data = np.reshape(data.images, [-1, 28, 28]), data.labels
