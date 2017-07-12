@@ -2,6 +2,8 @@
 
 import os
 import sys
+import time
+import random
 import scipy.ndimage
 import numpy as np
 import tensorflow as tf
@@ -56,7 +58,7 @@ def trainable_parameters():
 def create_layers(inp, layers):
     params = trainable_parameters()
     print_info(
-        "%30s Input: %d params"
+        "%30s Input:  %d params"
         % (inp.shape, params)
     )
     y = inp
@@ -94,7 +96,9 @@ def create_model():
         lambda l: dense(l, 10)
     ]
 
-    y = create_layers(tf.reshape(x, [-1, 28, 28, 1]), layers)
+    x = tf.clip_by_value(x * 1.1 - 0.1, 0.0, 1.0)
+    x = tf.reshape(x, [-1, 28, 28, 1])
+    y = create_layers(x, layers)
 
     correct = tf.equal(tf.argmax(y, 1), tf.argmax(t, 1))
     correct = tf.cast(correct, tf.float32)
@@ -117,58 +121,49 @@ def create_model():
         name = "train"
     )
 
-def compute_stats(s, batch):
-    x, t = batch
-    num_samples = len(x)
-    if num_samples <= 1024:
+def compute_stats(s, data):
+    accuracy, loss, mistakes = 0, 0, 0
+    for x, t in random_batches(data, 1000):
         v = s.run(
             [s.accuracy, s.loss, s.mistakes],
             feed_dict = {s.x: x, s.t: t}
         )
-        return {
-            "accuracy": v[0],
-            "loss": v[1],
-            "mistakes": v[2],
-            "samples": num_samples
-        }
-
-    # Split computation into batches of 1024
-    ret = {}
-    while len(x) > 0:
-        part = x[0:1024], t[0:1024]
-        x, t = x[1024:], t[1024:]
-        part_stat = compute_stats(s, part)
-        part_stat["accuracy"] *= len(part[0])
-        part_stat["loss"] *= len(part[0])
-        ret = dict_sum(ret, part_stat)
-    ret["accuracy"] /= num_samples
-    ret["loss"] /= num_samples
-    return ret
+        accuracy += v[0] * len(x)
+        loss += v[1] * len(x)
+        mistakes += v[2]
+    return {
+        "accuracy": accuracy / len(data[0]),
+        "loss": loss / len(data[0]),
+        "mistakes": mistakes,
+        "samples": len(data[0])
+    }
 
 def format_stats(v):
-    return "%6.2f%% (%d/%d), loss=%f" % (
+    return "%5.2f%% (%d/%d), loss=%f" % (
         v["accuracy"] * 100.0,
         v["samples"] - v["mistakes"],
         v["samples"],
         v["loss"]
     )
 
-def print_stats(s, train, valid):
-    sys.stderr.write("%10d: " % s.global_step.eval())
-    sys.stderr.flush()
-    v = compute_stats(s, train)
-    sys.stderr.write(" [train] %s " % format_stats(v))
-    sys.stderr.flush()
-    v = compute_stats(s, valid)
-    sys.stderr.write(" [valid]%s\n" % format_stats(v))
-    sys.stderr.flush()
-    return v
+def add_scar(i, size):
+    y = random.randrange(i.shape[0] - size + 1)
+    x = random.randrange(i.shape[1] - size + 1)
+    i[y:y+size,x:x+size] = 0.0
 
 def augment_image(i):
-    i = i.reshape((28, 28))
-    i = scipy.ndimage.rotate(i, 40.0 * (np.random.rand() - 0.5))
-    i = crop_zeros(i, epsilon = 0.05)[0:28,0:28]
-    i = random_pad(i, 28)
+    i = i.reshape((28, 28)).copy()
+    add_scar(i, 3)
+    if np.random.rand() < 0.5:
+        add_scar(i, 4)
+        i = scipy.ndimage.rotate(
+            i, 20.0 * (np.random.rand() - 0.5),
+            reshape = False
+        )
+    if np.random.rand() < 0.2:
+        i = i * 3 - np.random.rand() * 2
+    if np.random.rand() < 0.1:
+        add_scar(i, 5)
     return i
 
 def augmented_batches(data, batch_size):
@@ -176,23 +171,46 @@ def augmented_batches(data, batch_size):
         yield (np.array([augment_image(i) for i in b[0]]), b[1])
 
 def train_batch(s, batch):
+    t = time.time()
     s.run(
         s.train,
         feed_dict = {s.x: batch[0], s.t: batch[1], s.dropout: 0.5}
     )
+    return time.time() - t
 
 def train(s, train, valid, program):
+    epoch = 0
     next_target = 0.99
-    batch_size = 100
+
     while True:
-        for b in iterate_in_thread(augmented_batches(train, batch_size)):
-            train_batch(s, b)
-        accuracy = print_stats(s, train, valid)["accuracy"]
+        epoch += 1
+        start_time = time.time()
+        calc_time = 0.0
+
+        for b in iterate_in_thread(augmented_batches(train, 100)):
+            calc_time += train_batch(s, b)
+
+        epoch_time = time.time() - start_time
+        s_train = compute_stats(s, next(augmented_batches(train, 5000)))
+        s_valid = compute_stats(s, valid)
+
+        stat = "epoch %-5d train: %s   valid: %s" % (epoch,
+            format_stats(s_train), format_stats(s_valid))
+
+        time_stat = "[C+%.1fs/X+%.1fs/S+%.1fs]" % (
+            calc_time,
+            epoch_time - calc_time,
+            time.time() - start_time - epoch_time
+        )
+
+        print_info("%-30s %s" % (time_stat, stat))
+
+        accuracy = s_valid["accuracy"]
         if accuracy >= next_target:
             next_target = accuracy * 0.9 + 0.1
             loadsave.save(s, sys.argv[1])
-            save_result(program, "%dx%d: %.2f%%" %
-                (s.global_step.eval(), batch_size, 100.0 * accuracy))
+            save_result(program, stat)
+
         if accuracy >= 0.99985:
             return
 

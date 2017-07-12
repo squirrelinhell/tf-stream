@@ -66,29 +66,26 @@ def str_to_image_shape(s):
 
 # Numpy
 
-def crop_zeros(array, epsilon = 0.001):
-    array[np.abs(array) < epsilon] = 0.0
-    coord = np.argwhere(array)
+def trim_zeros(array, eps = 0.001):
+    array = np.asarray(array)
+    coord = np.argwhere(np.abs(array) > eps)
     coord = np.array([coord.min(axis = 0), coord.max(axis = 0)]).T
     coord = [slice(a[0], a[1] + 1) for a in coord]
     return array[coord]
-
-def random_pad(array, shape):
-    pad = np.maximum(0, np.asarray(shape) - np.asarray(array.shape))
-    shift = np.floor(np.random.rand(len(pad)) * pad)
-    pad = np.array([shift, pad - shift], dtype = "int32").T
-    return np.pad(array, pad, mode = "constant")
 
 # Train
 
 def random_batches(data, batch_size = 128):
     x, t = data
     x, t = np.asarray(x), np.asarray(t)
-    p = np.arange(len(x))
+    length = len(x)
+    if length != len(t):
+        return
+    p = np.arange(length)
     np.random.shuffle(p)
     x, t = x[p].reshape(x.shape), t[p].reshape(t.shape)
     start = 0
-    while start + batch_size <= len(x):
+    while start + batch_size <= length:
         yield((x[start:start+batch_size], t[start:start+batch_size]))
         start += batch_size
 

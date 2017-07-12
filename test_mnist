@@ -63,7 +63,7 @@ if [ "x$2" != x -a -d "$2" ]; then
     fi
     image_read 28,28 "$2" | \
         model_run "$1" x:0 y:0 | \
-        od -An -t u1 -w10 || exit 1
+        od -v -An -t u1 -w10 || exit 1
     exit 0
 fi
 
